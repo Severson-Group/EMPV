@@ -2,6 +2,8 @@
 
 Ensure you have node.js and npm
 
+To create application:
+
 ```
 npm install
 ```
