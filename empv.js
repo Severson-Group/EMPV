@@ -30,3 +30,7 @@ document.addEventListener('dragenter', (event) => {
 document.addEventListener('dragleave', (event) => {
     console.log('File has left the Drop Space');
 });
+
+/* code from
+https://d3js.org/getting-started
+*/
