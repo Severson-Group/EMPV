@@ -7,6 +7,8 @@ parseRibbonOutput function added as example */
 #include "include/win32Tools.h"
 #include <time.h>
 
+#define THEME_DARK 12
+
 typedef struct { // all empv variables (shared state) are defined here
     list_t *data; // a list of all data collected through ethernet
     /* mouse variables */
@@ -55,16 +57,18 @@ void init(empv *selfp) { // initialises the empv variabes (shared state)
     self.anchorY = 0;
     self.resize = 0;
     /* color */
-    self.theme = 0;
-    double themeCopy[18] = {
+    self.theme = THEME_DARK;
+    double themeCopy[24] = {
         /* light theme */
         255, 255, 255, // background color
         195, 195, 195, // window color
         255, 0, 0, // data color
+        0, 0, 0, // text color
         /* dark theme */
         60, 60, 60, // background color
-        40, 40, 40, // window color
-        19, 236, 48 // data color
+        10, 10, 10, // window color
+        19, 236, 48, // data color
+        200, 200, 200 // text color
     };
     memcpy(self.themeColors, themeCopy, sizeof(themeCopy));
     if (self.theme == 0) {
@@ -90,6 +94,8 @@ void renderWindow(empv *selfp) {
     turtleGoto(self.windowCoords[0], self.windowCoords[1]);
     turtleRentangle(self.windowCoords[0], self.windowCoords[3], self.windowCoords[2], self.windowCoords[3] - self.windowTop, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
     turtlePenUp();
+    turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+    textGLWriteString("Display", (self.windowCoords[0] + self.windowCoords[2]) / 2, self.windowCoords[3] - self.windowTop * 0.45, self.windowTop * 0.5, 50);
 
     /* window move and resize logic */
     /* move */
@@ -255,7 +261,7 @@ void parseRibbonOutput(empv* selfp) {
         if (ribbonRender.output[1] == 2) { // view
             if (ribbonRender.output[2] == 1) { // change theme
                 if (self.theme == 0) {
-                    self.theme = 9;
+                    self.theme = THEME_DARK;
                 } else {
                     self.theme = 0;
                 }
