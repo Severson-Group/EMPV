@@ -7,7 +7,7 @@ parseRibbonOutput function added as example */
 #include "include/win32Tools.h"
 #include <time.h>
 
-#define THEME_DARK 12
+#define THEME_DARK 15
 
 typedef struct { // all empv variables (shared state) are defined here
     list_t *data; // a list of all data collected through ethernet
@@ -58,17 +58,19 @@ void init(empv *selfp) { // initialises the empv variabes (shared state)
     self.resize = 0;
     /* color */
     self.theme = THEME_DARK;
-    double themeCopy[24] = {
+    double themeCopy[30] = {
         /* light theme */
         255, 255, 255, // background color
         195, 195, 195, // window color
         255, 0, 0, // data color
         0, 0, 0, // text color
+        230, 230, 230, // window background color
         /* dark theme */
         60, 60, 60, // background color
         10, 10, 10, // window color
         19, 236, 48, // data color
-        200, 200, 200 // text color
+        200, 200, 200, // text color
+        80, 80, 80, // window background color
     };
     memcpy(self.themeColors, themeCopy, sizeof(themeCopy));
     if (self.theme == 0) {
@@ -194,6 +196,9 @@ void renderWindow(empv *selfp) {
 
 void renderData(empv* selfp) {
     empv self = *selfp;
+    /* render window background */
+    turtleRentangle(self.windowCoords[0], self.windowCoords[1], self.windowCoords[2], self.windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+    /* render data */
     self.rightBound = self.data -> length;
     if (self.rightBound > self.leftBound + self.windowSize) {
         self.leftBound = self.rightBound - self.windowSize;
@@ -360,7 +365,7 @@ int main(int argc, char *argv[]) {
 
     while (turtle.close == 0) { // main loop
         start = clock();
-        double sinValue = sin(tick / 5.0) * 90;
+        double sinValue = sin(tick / 5.0) * 50;
         list_append(self.data, (unitype) sinValue, 'd');
         utilLoop(&self);
         turtleGetMouseCoords(); // get the mouse coordinates (turtle.mouseX, turtle.mouseY)
