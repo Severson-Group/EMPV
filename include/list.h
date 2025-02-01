@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 /*
 21.04.23:
@@ -242,7 +243,7 @@ void list_delete_range(list_t* list, int indexMin, int indexMax) { // deletes ma
     list -> data = newData;
 }
 
-int unitype_check_equal (unitype item1, unitype item2, char typeItem1, char typeItem2) { // checks if two unitype items are equal
+int unitype_check_equal(unitype item1, unitype item2, char typeItem1, char typeItem2) { // checks if two unitype items are equal
     if ((typeItem1 == 's' || typeItem2 == 's') && typeItem1 != typeItem2) { // logical xor but idk how to do it
         return 0;
     }
