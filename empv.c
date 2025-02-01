@@ -198,7 +198,7 @@ void renderData(empv* selfp) {
     if (self.rightBound > self.leftBound + self.windowSize) {
         self.leftBound = self.rightBound - self.windowSize;
     }
-    turtlePenSize(2);
+    turtlePenSize(1);
     turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
     double xquantum = (self.windowCoords[2] - self.windowCoords[0]) / (self.rightBound - self.leftBound - 1);
     for (int i = 0; i < self.rightBound - self.leftBound; i++) {
