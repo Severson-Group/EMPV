@@ -24,6 +24,7 @@ That's it! (probably)
 
 IFileDialog: https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ifiledialog
 Clipboard: https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard
+Cursor: https://learn.microsoft.com/en-us/windows/win32/learnwin32/setting-the-cursor-image
 */
 
 #ifndef WIN32FILE
@@ -265,5 +266,20 @@ int win32FileDialogPrompt(char openOrSave, char *filename) { // 0 - open, 1 - sa
         CoUninitialize();
     }
     return -1;
+}
+
+#define CURSOR_POINTER IDC_ARROW
+#define CURSOR_LOADING IDC_WAIT
+#define CURSOR_HAND IDC_HAND
+#define CURSOR_MOVING IDC_SIZEALL
+#define CURSOR_CROSS IDC_CROSS
+#define CURSOR_UPDOWN IDC_SIZENS
+#define CURSOR_SIDESIDE IDC_SIZEWE
+#define CURSOR_DIAGONALLEFT IDC_SIZENWSE
+#define CURSOR_DIAGONALRIGHT IDC_SIZENESW
+
+void win32SetCursor(LPCTSTR cursor) {
+    HCURSOR hCursor = LoadCursor(NULL, cursor);
+    SetCursor(hCursor);
 }
 #endif

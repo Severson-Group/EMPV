@@ -9,13 +9,25 @@ parseRibbonOutput function added as example */
 
 typedef struct { // all empv variables (shared state) are defined here
     list_t *data; // a list of all data collected through ethernet
+    /* mouse variables */
+    double mx;
+    double my;
+    double mw;
     /* window variables */
-    int leftBound;
-    int rightBound;
-    double bottomBound;
-    double topBound;
-    int windowSize;
-    double windowCoords[4];
+    int leftBound; // left bound (index in data list)
+    int rightBound; // right bound (index in data list)
+    double bottomBound; // bottom bound (y value)
+    double topBound; // top bound (y value)
+    int windowSize; // size of window (index in data list)
+    double windowCoords[4]; // coordinates of window on canvas
+    double windowTop; // size of window top bar
+    double windowMinX; // window size on canvas minimum
+    double windowMinY; // window size on canvas minimum
+    int move; // moving window
+    double anchorX;
+    double anchorY;
+    double anchorPoints[4];
+    int resize; // resizing window
     /* color variables */
     int theme;
     double themeColors[90];
@@ -35,6 +47,13 @@ void init(empv *selfp) { // initialises the empv variabes (shared state)
     self.windowCoords[1] = -160;
     self.windowCoords[2] = 240;
     self.windowCoords[3] = 160;
+    self.windowTop = 15;
+    self.windowMinX = 50;
+    self.windowMinY = 50 + self.windowTop;
+    self.move = 0;
+    self.anchorX = 0;
+    self.anchorY = 0;
+    self.resize = 0;
     /* color */
     self.theme = 0;
     double themeCopy[18] = {
@@ -60,6 +79,8 @@ void init(empv *selfp) { // initialises the empv variabes (shared state)
 
 void renderWindow(empv *selfp) {
     empv self = *selfp;
+    /* render window */
+    turtlePenSize(2);
     turtlePenColor(self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5]);
     turtleGoto(self.windowCoords[0], self.windowCoords[1]);
     turtlePenDown();
@@ -67,7 +88,101 @@ void renderWindow(empv *selfp) {
     turtleGoto(self.windowCoords[2], self.windowCoords[3]);
     turtleGoto(self.windowCoords[2], self.windowCoords[1]);
     turtleGoto(self.windowCoords[0], self.windowCoords[1]);
+    turtleRentangle(self.windowCoords[0], self.windowCoords[3], self.windowCoords[2], self.windowCoords[3] - self.windowTop, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
     turtlePenUp();
+
+    /* window move and resize logic */
+    /* move */
+    if (turtleMouseDown()) {
+        if (self.move < 0) {
+            self.anchorX = self.mx;
+            self.anchorY = self.my;
+            memcpy(self.anchorPoints, self.windowCoords, sizeof(double) * 4);
+            self.move *= -1;
+        }
+    } else {
+        if (self.mx > self.windowCoords[0] && self.mx < self.windowCoords[2] && self.my > self.windowCoords[3] - self.windowTop && self.my < self.windowCoords[3]) {
+            self.move = -1;
+        } else {
+            self.move = 0;
+        }
+    }
+    if (self.move > 0) {
+        self.windowCoords[0] = self.anchorPoints[0] + self.mx - self.anchorX;
+        self.windowCoords[1] = self.anchorPoints[1] + self.my - self.anchorY;
+        self.windowCoords[2] = self.anchorPoints[2] + self.mx - self.anchorX;
+        self.windowCoords[3] = self.anchorPoints[3] + self.my - self.anchorY;
+    }
+    /* resize */
+    double epsilon = 3;
+    if (turtleMouseDown()) {
+        if (self.resize < 0) {
+            self.resize *= -1;
+            self.move = 0; // don't move and resize
+        }
+    } else {
+        if (self.mx > self.windowCoords[2] - epsilon && self.mx < self.windowCoords[2] + epsilon && self.my > self.windowCoords[1] - epsilon && self.my < self.windowCoords[1] + epsilon) {
+            win32SetCursor(CURSOR_DIAGONALLEFT);
+            self.resize = -2;
+        } else if (self.mx > self.windowCoords[0] - epsilon && self.mx < self.windowCoords[0] + epsilon && self.my > self.windowCoords[3] - epsilon && self.my < self.windowCoords[3] + epsilon) {
+            win32SetCursor(CURSOR_DIAGONALLEFT);
+            self.resize = -4;
+        } else if (self.mx > self.windowCoords[0] - epsilon && self.mx < self.windowCoords[0] + epsilon && self.my > self.windowCoords[1] - epsilon && self.my < self.windowCoords[1] + epsilon) {
+            win32SetCursor(CURSOR_DIAGONALRIGHT);
+            self.resize = -1;
+        } else if (self.mx > self.windowCoords[2] - epsilon && self.mx < self.windowCoords[2] + epsilon && self.my > self.windowCoords[3] - epsilon && self.my < self.windowCoords[3] + epsilon) {
+            win32SetCursor(CURSOR_DIAGONALRIGHT);
+            self.resize = -3;
+        } else {
+            self.resize = 0;
+        }
+    }
+    if (self.resize > 0) {
+        switch (self.resize) {
+            case 1:
+            self.windowCoords[0] = self.mx;
+            self.windowCoords[1] = self.my;
+            if (self.windowCoords[0] > self.windowCoords[2] - self.windowMinX) {
+                self.windowCoords[0] = self.windowCoords[2] - self.windowMinX;
+            }
+            if (self.windowCoords[1] > self.windowCoords[3] - self.windowMinY) {
+                self.windowCoords[1] = self.windowCoords[3] - self.windowMinY;
+            }
+            break;
+            case 2:
+            self.windowCoords[2] = self.mx;
+            self.windowCoords[1] = self.my;
+            if (self.windowCoords[2] < self.windowCoords[0] + self.windowMinX) {
+                self.windowCoords[2] = self.windowCoords[0] + self.windowMinX;
+            }
+            if (self.windowCoords[1] > self.windowCoords[3] - self.windowMinY) {
+                self.windowCoords[1] = self.windowCoords[3] - self.windowMinY;
+            }
+            break;
+            case 3:
+            self.windowCoords[2] = self.mx;
+            self.windowCoords[3] = self.my;
+            if (self.windowCoords[2] < self.windowCoords[0] + self.windowMinX) {
+                self.windowCoords[2] = self.windowCoords[0] + self.windowMinX;
+            }
+            if (self.windowCoords[3] < self.windowCoords[1] + self.windowMinY) {
+                self.windowCoords[3] = self.windowCoords[1] + self.windowMinY;
+            }
+            break;
+            case 4:
+            self.windowCoords[0] = self.mx;
+            self.windowCoords[3] = self.my;
+            if (self.windowCoords[0] > self.windowCoords[2] - self.windowMinX) {
+                self.windowCoords[0] = self.windowCoords[2] - self.windowMinX;
+            }
+            if (self.windowCoords[3] < self.windowCoords[1] + self.windowMinY) {
+                self.windowCoords[3] = self.windowCoords[1] + self.windowMinY;
+            }
+            break;
+            default:
+            break;
+        }
+    }
     *selfp = self;
 }
 
@@ -77,10 +192,11 @@ void renderData(empv* selfp) {
     if (self.rightBound > self.leftBound + self.windowSize) {
         self.leftBound = self.rightBound - self.windowSize;
     }
+    turtlePenSize(2);
     turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
     double xquantum = (self.windowCoords[2] - self.windowCoords[0]) / (self.rightBound - self.leftBound - 1);
     for (int i = 0; i < self.rightBound - self.leftBound; i++) {
-        turtleGoto(self.windowCoords[0] + i * xquantum, self.windowCoords[1] + ((self.data -> data[self.leftBound + i].d - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.windowCoords[3] - self.windowCoords[1]));
+        turtleGoto(self.windowCoords[0] + i * xquantum, self.windowCoords[1] + ((self.data -> data[self.leftBound + i].d - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.windowCoords[3] - self.windowTop - self.windowCoords[1]));
         turtlePenDown();
     }
     turtlePenUp();
@@ -168,6 +284,36 @@ double randomDouble(double lowerBound, double upperBound) { // random double bet
     return (rand() * (upperBound - lowerBound) / RAND_MAX + lowerBound); // probably works idk
 }
 
+void utilLoop(empv *selfp) {
+    turtleGetMouseCoords(); // get the mouse coordinates
+    if (turtle.mouseX > 320) { // bound mouse coordinates to window coordinates
+        selfp -> mx = 320;
+    } else {
+        if (turtle.mouseX < -320) {
+            selfp -> mx = -320;
+        } else {
+            selfp -> mx = turtle.mouseX;
+        }
+    }
+    if (turtle.mouseY > 180) {
+        selfp -> my = 180;
+    } else {
+        if (turtle.mouseY < -180) {
+            selfp -> my = -180;
+        } else {
+            selfp -> my = turtle.mouseY;
+        }
+    }
+    selfp -> mw = turtleMouseWheel();
+    if (turtleKeyPressed(GLFW_KEY_UP)) {
+        selfp -> mw += 1;
+    }
+    if (turtleKeyPressed(GLFW_KEY_DOWN)) {
+        selfp -> mw -= 1;
+    }
+    turtleClear();
+}
+
 int main(int argc, char *argv[]) {
     GLFWwindow* window;
     /* Initialize glfw */
@@ -208,9 +354,9 @@ int main(int argc, char *argv[]) {
 
     while (turtle.close == 0) { // main loop
         start = clock();
-        // list_append(self.data, (unitype) randomDouble(0, 100), 'd');
         double sinValue = sin(tick / 5.0) * 90;
         list_append(self.data, (unitype) sinValue, 'd');
+        utilLoop(&self);
         turtleGetMouseCoords(); // get the mouse coordinates (turtle.mouseX, turtle.mouseY)
         turtleClear();
         renderData(&self);
