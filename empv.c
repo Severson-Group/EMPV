@@ -143,7 +143,7 @@ void renderWindow() {
     turtleGoto(self.windowCoords[0], self.windowCoords[1]);
     turtlePenUp();
     turtleRentangle(self.windowCoords[0], self.windowCoords[3], self.windowCoords[2], self.windowCoords[3] - self.windowTop, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
-    turtleRentangle(self.windowCoords[2] - self.windowSide, self.windowCoords[1], self.windowCoords[2], self.windowCoords[3], self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
+    turtleRentangle(self.windowCoords[2] - self.windowSide, self.windowCoords[1], self.windowCoords[2], self.windowCoords[3], self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 40);
     turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
     /* write title */
     textGLWriteString("Display", (self.windowCoords[0] + self.windowCoords[2] - self.windowSide) / 2, self.windowCoords[3] - self.windowTop * 0.45, self.windowTop * 0.5, 50);
@@ -334,7 +334,7 @@ void renderData() {
     }
     turtlePenSize(1);
     turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
-    double xquantum = (self.windowCoords[2] - self.windowSide - self.windowCoords[0]) / (self.rightBound - self.leftBound - 1);
+    double xquantum = (self.windowCoords[2] - self.windowCoords[0]) / (self.rightBound - self.leftBound - 1);
     for (int i = 0; i < self.rightBound - self.leftBound; i++) {
         turtleGoto(self.windowCoords[0] + i * xquantum, self.windowCoords[1] + ((self.data -> data[self.leftBound + i].d - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.windowCoords[3] - self.windowTop - self.windowCoords[1]));
         turtlePenDown();
