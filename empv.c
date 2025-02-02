@@ -78,7 +78,7 @@ void init() { // initialises the empv variabes (shared state)
     self.dialRange[1] = 1;
     self.dialRange[2] = 1000;
     self.dialRange[3] = DIAL_EXP;
-    self.dialRange[4] = 30;
+    self.dialRange[4] = 50;
     self.dialRange[5] = 10000;
     self.dialSize[0] = 8;
     self.dialSize[1] = 8;
@@ -171,7 +171,7 @@ void renderWindow() {
         } else if (self.dialRange[i * 3] == DIAL_LINEAR) {
             dialAngle = (*(self.dialVariable[i]) - self.dialRange[i * 3 + 1]) / (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]) * 360;
         } else if (self.dialRange[i * 3] == DIAL_EXP) {
-            dialAngle = 360 * (log(((*(self.dialVariable[i]) - self.dialRange[i * 3 + 1]) / (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1])) * 360) / log(360));
+            dialAngle = 360 * (log(((*(self.dialVariable[i]) - self.dialRange[i * 3 + 1]) / (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1])) * 360 + 1) / log(361));
         }
         turtleGoto(dialX + sin(dialAngle / 57.2958) * self.dialSize[i], dialY + cos(dialAngle / 57.2958) * self.dialSize[i]);
         turtlePenUp();
@@ -183,7 +183,7 @@ void renderWindow() {
                 self.dialStatus[i * 2 + 1] = self.mx - dialX;
             }
         } else {
-            if (self.mx > dialX - self.dialSize[i] && self.mx < dialX + self.dialSize[1] && self.my > dialY - self.dialSize[i] && self.my < dialY + self.dialSize[i]) {
+            if (self.mx > dialX - self.dialSize[i] && self.mx < dialX + self.dialSize[i] && self.my > dialY - self.dialSize[i] && self.my < dialY + self.dialSize[i]) {
                 self.dialStatus[i * 2] = -1;
             } else {
                 self.dialStatus[i * 2] = 0;
@@ -205,10 +205,12 @@ void renderWindow() {
             } else if (self.dialRange[i * 3] == DIAL_LINEAR) {
                 *(self.dialVariable[i]) = self.dialRange[i * 3 + 1] + ((self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]) * dialAngle / 360);
             } else if (self.dialRange[i * 3] == DIAL_EXP) {
-                *(self.dialVariable[i]) = self.dialRange[i * 3 + 1] + (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]) * (pow(360, dialAngle / 360) / 360);
+                *(self.dialVariable[i]) = self.dialRange[i * 3 + 1] + (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]) * ((pow(361, dialAngle / 360) - 1) / 360);
             }
-            // printf("%lf\n", *(self.dialVariable[i]));
         }
+        char bubble[24];
+        sprintf(bubble, "%.0lf", *(self.dialVariable[i]));
+        textGLWriteString(bubble, dialX + self.dialSize[i] + 3, dialY, 4, 0);
     }
 
     /* window move and resize logic */
@@ -239,6 +241,22 @@ void renderWindow() {
         if (self.resize < 0) {
             self.resize *= -1;
             self.move = 0; // don't move and resize
+            switch (self.resize) {
+                case 1:
+                    win32SetCursor(CURSOR_DIAGONALRIGHT);
+                break;
+                case 2:
+                    win32SetCursor(CURSOR_DIAGONALLEFT);
+                break;
+                case 3:
+                    win32SetCursor(CURSOR_DIAGONALRIGHT);
+                break;
+                case 4:
+                    win32SetCursor(CURSOR_DIAGONALLEFT);
+                break;
+                default:
+                break;
+            }
         }
     } else {
         if (self.mx > self.windowCoords[2] - epsilon && self.mx < self.windowCoords[2] + epsilon && self.my > self.windowCoords[1] - epsilon && self.my < self.windowCoords[1] + epsilon) {
