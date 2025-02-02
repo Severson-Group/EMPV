@@ -320,13 +320,25 @@ void renderWindow() {
                     win32SetCursor(CURSOR_DIAGONALRIGHT);
                 break;
                 case 2:
-                    win32SetCursor(CURSOR_DIAGONALLEFT);
+                    win32SetCursor(CURSOR_UPDOWN);
                 break;
                 case 3:
-                    win32SetCursor(CURSOR_DIAGONALRIGHT);
+                    win32SetCursor(CURSOR_DIAGONALLEFT);
                 break;
                 case 4:
+                    win32SetCursor(CURSOR_SIDESIDE);
+                break;
+                case 5:
+                    win32SetCursor(CURSOR_DIAGONALRIGHT);
+                break;
+                case 6:
+                    win32SetCursor(CURSOR_UPDOWN);
+                break;
+                case 7:
                     win32SetCursor(CURSOR_DIAGONALLEFT);
+                break;
+                case 8:
+                    win32SetCursor(CURSOR_SIDESIDE);
                 break;
                 default:
                 break;
@@ -335,16 +347,28 @@ void renderWindow() {
     } else {
         if (self.mx > self.windowCoords[2] - epsilon && self.mx < self.windowCoords[2] + epsilon && self.my > self.windowCoords[1] - epsilon && self.my < self.windowCoords[1] + epsilon) {
             win32SetCursor(CURSOR_DIAGONALLEFT);
-            self.resize = -2;
+            self.resize = -3;
         } else if (self.mx > self.windowCoords[0] - epsilon && self.mx < self.windowCoords[0] + epsilon && self.my > self.windowCoords[3] - epsilon && self.my < self.windowCoords[3] + epsilon) {
             win32SetCursor(CURSOR_DIAGONALLEFT);
-            self.resize = -4;
+            self.resize = -7;
         } else if (self.mx > self.windowCoords[0] - epsilon && self.mx < self.windowCoords[0] + epsilon && self.my > self.windowCoords[1] - epsilon && self.my < self.windowCoords[1] + epsilon) {
             win32SetCursor(CURSOR_DIAGONALRIGHT);
             self.resize = -1;
         } else if (self.mx > self.windowCoords[2] - epsilon && self.mx < self.windowCoords[2] + epsilon && self.my > self.windowCoords[3] - epsilon && self.my < self.windowCoords[3] + epsilon) {
             win32SetCursor(CURSOR_DIAGONALRIGHT);
-            self.resize = -3;
+            self.resize = -5;
+        } else if (self.mx > self.windowCoords[0] && self.mx < self.windowCoords[2] && self.my > self.windowCoords[1] - epsilon && self.my < self.windowCoords[1] + epsilon) {
+            win32SetCursor(CURSOR_UPDOWN);
+            self.resize = -2;
+        } else if (self.mx > self.windowCoords[2] - epsilon && self.mx < self.windowCoords[2] + epsilon && self.my > self.windowCoords[1] && self.my < self.windowCoords[3]) {
+            win32SetCursor(CURSOR_SIDESIDE);
+            self.resize = -4;
+        } else if (self.mx > self.windowCoords[0] && self.mx < self.windowCoords[2] && self.my > self.windowCoords[3] - epsilon && self.my < self.windowCoords[3] + epsilon) {
+            win32SetCursor(CURSOR_UPDOWN);
+            self.resize = -6;
+        } else if (self.mx > self.windowCoords[0] - epsilon && self.mx < self.windowCoords[0] + epsilon && self.my > self.windowCoords[1] && self.my < self.windowCoords[3]) {
+            win32SetCursor(CURSOR_SIDESIDE);
+            self.resize = -8;
         } else {
             self.resize = 0;
         }
@@ -362,6 +386,12 @@ void renderWindow() {
             }
             break;
             case 2:
+            self.windowCoords[1] = self.my;
+            if (self.windowCoords[1] > self.windowCoords[3] - self.windowMinY) {
+                self.windowCoords[1] = self.windowCoords[3] - self.windowMinY;
+            }
+            break;
+            case 3:
             self.windowCoords[2] = self.mx;
             self.windowCoords[1] = self.my;
             if (self.windowCoords[2] < self.windowCoords[0] + self.windowMinX) {
@@ -371,7 +401,13 @@ void renderWindow() {
                 self.windowCoords[1] = self.windowCoords[3] - self.windowMinY;
             }
             break;
-            case 3:
+            case 4:
+            self.windowCoords[2] = self.mx;
+            if (self.windowCoords[2] < self.windowCoords[0] + self.windowMinX) {
+                self.windowCoords[2] = self.windowCoords[0] + self.windowMinX;
+            }
+            break;
+            case 5:
             self.windowCoords[2] = self.mx;
             self.windowCoords[3] = self.my;
             if (self.windowCoords[2] < self.windowCoords[0] + self.windowMinX) {
@@ -381,7 +417,13 @@ void renderWindow() {
                 self.windowCoords[3] = self.windowCoords[1] + self.windowMinY;
             }
             break;
-            case 4:
+            case 6:
+            self.windowCoords[3] = self.my;
+            if (self.windowCoords[3] < self.windowCoords[1] + self.windowMinY) {
+                self.windowCoords[3] = self.windowCoords[1] + self.windowMinY;
+            }
+            break;
+            case 7:
             self.windowCoords[0] = self.mx;
             self.windowCoords[3] = self.my;
             if (self.windowCoords[0] > self.windowCoords[2] - self.windowMinX) {
@@ -389,6 +431,12 @@ void renderWindow() {
             }
             if (self.windowCoords[3] < self.windowCoords[1] + self.windowMinY) {
                 self.windowCoords[3] = self.windowCoords[1] + self.windowMinY;
+            }
+            break;
+            case 8:
+            self.windowCoords[0] = self.mx;
+            if (self.windowCoords[0] > self.windowCoords[2] - self.windowMinX) {
+                self.windowCoords[0] = self.windowCoords[2] - self.windowMinX;
             }
             break;
             default:
