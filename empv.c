@@ -7,19 +7,36 @@ parseRibbonOutput function added as example */
 #include "include/win32Tools.h"
 #include <time.h>
 
-#define THEME_DARK     15
-
 #define DIAL_LINEAR    0
 #define DIAL_LOG       1
 #define DIAL_EXP       2
+
+typedef struct {
+    char label[24];
+    int type;
+    int status[2];
+    double size;
+    double position[2];
+    double range[2];
+    double *variable;
+} dial_t;
+
+typedef struct {
+    char label[24];
+    int status;
+    double size;
+    double position[2];
+    int *variable;
+} switch_t;
 
 typedef struct { // all empv variables (shared state) are defined here
     list_t *data; // a list of all data collected through ethernet
     list_t *logVariables; // a list of variables logged on the AMDC
     /* mouse variables */
-    double mx;
-    double my;
-    double mw;
+    double mx; // mouseX
+    double my; // mouseY
+    double mw; // mouse wheel
+    char mouseDown;  // mouse down
     /* window variables */
     int leftBound; // left bound (index in data list)
     int rightBound; // right bound (index in data list)
@@ -36,20 +53,40 @@ typedef struct { // all empv variables (shared state) are defined here
     double anchorY;
     double anchorPoints[4];
     int resize; // resizing window
-    /* dial variables */
-    double dialRange[6];
-    double dialSize[2];
-    double *dialVariable[2];
-    int dialStatus[4];
-    double dialPosition[4];
+    int stop;
+    /* ui variables */
+    dial_t dials[2];
     double dialAnchorX;
     double dialAnchorY;
+    switch_t switches[1];
     /* color variables */
     int theme;
+    int themeDark;
     double themeColors[90];
 } empv;
 
 empv self; // global state
+
+void dialInit(dial_t *dial, char *label, double *variable, int type, double yScale, double yOffset, double size, double bottom, double top) {
+    memcpy(dial -> label, label, strlen(label) + 1);
+    dial -> status[0] = 0;
+    dial -> type = type;
+    dial -> position[0] = yScale;
+    dial -> position[1] = yOffset;
+    dial -> size = size;
+    dial -> range[0] = bottom;
+    dial -> range[1] = top;
+    dial -> variable = variable;
+}
+
+void switchInit(switch_t *switchp, char *label, int *variable, double yScale, double yOffset, double size) {
+    memcpy(switchp -> label, label, strlen(label) + 1);
+    switchp -> status = 0;
+    switchp -> position[0] = yScale;
+    switchp -> position[1] = yOffset;
+    switchp -> size = size;
+    switchp -> variable = variable;
+}
 
 void init() { // initialises the empv variabes (shared state)
     /* data */
@@ -68,47 +105,40 @@ void init() { // initialises the empv variabes (shared state)
     self.windowTop = 15;
     self.windowSide = 50;
     self.windowMinX = 50 + self.windowSide;
-    self.windowMinY = 80 + self.windowTop;
+    self.windowMinY = 120 + self.windowTop;
     self.move = 0;
     self.anchorX = 0;
     self.anchorY = 0;
     self.resize = 0;
-    /* dial */
-    self.dialRange[0] = DIAL_EXP;
-    self.dialRange[1] = 1;
-    self.dialRange[2] = 1000;
-    self.dialRange[3] = DIAL_EXP;
-    self.dialRange[4] = 50;
-    self.dialRange[5] = 10000;
-    self.dialSize[0] = 8;
-    self.dialSize[1] = 8;
-    self.dialStatus[0] = 0;
-    self.dialStatus[2] = 0;
-    self.dialVariable[0] = &self.windowSize;
-    self.dialVariable[1] = &self.topBound;
-    self.dialPosition[0] = 0.95;
-    self.dialPosition[1] = -15 - self.windowTop;
-    self.dialPosition[2] = 0.95;
-    self.dialPosition[3] = -55 - self.windowTop;
+    self.stop = 0;
+    /* ui */
+    dialInit(&self.dials[0], "X Scale", &self.windowSize, DIAL_EXP, 1, -25 - self.windowTop, 8, 1, 1000);
+    dialInit(&self.dials[1], "Y Scale", &self.topBound, DIAL_EXP, 1, -65 - self.windowTop, 8, 50, 10000);
     self.dialAnchorX = 0;
     self.dialAnchorY = 0;
+    switchInit(&self.switches[0], "Stop", &self.stop, 1, -100 - self.windowTop, 8);
     /* color */
-    self.theme = THEME_DARK;
-    double themeCopy[30] = {
+    double themeCopy[42] = {
         /* light theme */
         255, 255, 255, // background color
         195, 195, 195, // window color
         255, 0, 0, // data color
         0, 0, 0, // text color
         230, 230, 230, // window background color
+        0, 255, 0, // switch toggled on color
+        255, 0, 0, // switch toggled off color
         /* dark theme */
         60, 60, 60, // background color
         10, 10, 10, // window color
         19, 236, 48, // data color
         200, 200, 200, // text color
         80, 80, 80, // window background color
+        0, 255, 0, // switch toggled on color
+        255, 0, 0 // switch toggled off color
     };
     memcpy(self.themeColors, themeCopy, sizeof(themeCopy));
+    self.themeDark = sizeof(themeCopy) / sizeof(double) / 2;
+    self.theme = self.themeDark;
     if (self.theme == 0) {
         ribbonLightTheme();
         popupLightTheme();
@@ -131,6 +161,113 @@ double angleBetween(double x1, double y1, double x2, double y2) {
     return output;
 }
 
+void dialTick() {
+    for (int i = 0; i < sizeof(self.dials) / sizeof(dial_t); i++) {
+        textGLWriteString(self.dials[i].label, (self.windowCoords[2] - self.windowSide + self.windowCoords[2]) / 2, self.windowCoords[1] + (self.windowCoords[3] - self.windowCoords[1]) * self.dials[i].position[0] + self.dials[i].position[1] + 15, 7, 50);
+        turtlePenSize(self.dials[i].size * 2);
+        double dialX = (self.windowCoords[2] - self.windowSide + self.windowCoords[2]) / 2;
+        double dialY = self.windowCoords[1] + (self.windowCoords[3] - self.windowCoords[1]) * self.dials[i].position[0] + self.dials[i].position[1];
+        turtleGoto(dialX, dialY);
+        turtlePenDown();
+        turtlePenUp();
+        turtlePenSize(self.dials[i].size * 2 * 0.8);
+        turtlePenColor(self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5]);
+        turtlePenDown();
+        turtlePenUp();
+        turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+        turtlePenSize(1);
+        turtlePenDown();
+        double dialAngle;
+        if (self.dials[i].type == DIAL_LOG) {
+            dialAngle = pow(360, (*(self.dials[i].variable) - self.dials[i].range[0]) / (self.dials[i].range[1] - self.dials[i].range[0]));
+        } else if (self.dials[i].type == DIAL_LINEAR) {
+            dialAngle = (*(self.dials[i].variable) - self.dials[i].range[0]) / (self.dials[i].range[1] - self.dials[i].range[0]) * 360;
+        } else if (self.dials[i].type == DIAL_EXP) {
+            dialAngle = 360 * (log(((*(self.dials[i].variable) - self.dials[i].range[0]) / (self.dials[i].range[1] - self.dials[i].range[0])) * 360 + 1) / log(361));
+        }
+        turtleGoto(dialX + sin(dialAngle / 57.2958) * self.dials[i].size, dialY + cos(dialAngle / 57.2958) * self.dials[i].size);
+        turtlePenUp();
+        if (self.mouseDown) {
+            if (self.dials[i].status[0] < 0) {
+                self.dialAnchorX = dialX;
+                self.dialAnchorY = dialY;
+                self.dials[i].status[0] *= -1;
+                self.dials[i].status[1] = self.mx - dialX;
+            }
+        } else {
+            if (self.mx > dialX - self.dials[i].size && self.mx < dialX + self.dials[i].size && self.my > dialY - self.dials[i].size && self.my < dialY + self.dials[i].size) {
+                self.dials[i].status[0] = -1;
+            } else {
+                self.dials[i].status[0] = 0;
+            }
+        }
+        if (self.dials[i].status[0] > 0) {
+            dialAngle = angleBetween(self.dialAnchorX, self.dialAnchorY, self.mx, self.my);
+            if (self.my < self.dialAnchorY) {
+                self.dials[i].status[1] = self.mx - dialX;
+            }
+            if ((dialAngle < 0.0001 || dialAngle > 180) && self.my > self.dialAnchorY && self.dials[i].status[1] >= 0) {
+                dialAngle = 0.0001;
+            }
+            if ((dialAngle > 359.999 || dialAngle < 180) && self.my > self.dialAnchorY && self.dials[i].status[1] < 0) {
+                dialAngle = 359.999;
+            }
+            if (self.dials[i].type == DIAL_LOG) {
+                *(self.dials[i].variable) = self.dials[i].range[0] + (self.dials[i].range[1] - self.dials[i].range[0]) * (log(dialAngle) / log(360));
+            } else if (self.dials[i].type == DIAL_LINEAR) {
+                *(self.dials[i].variable) = self.dials[i].range[0] + ((self.dials[i].range[1] - self.dials[i].range[0]) * dialAngle / 360);
+            } else if (self.dials[i].type == DIAL_EXP) {
+                *(self.dials[i].variable) = self.dials[i].range[0] + (self.dials[i].range[1] - self.dials[i].range[0]) * ((pow(361, dialAngle / 360) - 1) / 360);
+            }
+        }
+        char bubble[24];
+        sprintf(bubble, "%.0lf", *(self.dials[i].variable));
+        textGLWriteString(bubble, dialX + self.dials[i].size + 3, dialY, 4, 0);
+    }
+}
+
+void switchTick() {
+    for (int i = 0; i < sizeof(self.switches) / sizeof(switch_t); i++) {
+        textGLWriteString(self.switches[i].label, (self.windowCoords[2] - self.windowSide + self.windowCoords[2]) / 2, self.windowCoords[1] + (self.windowCoords[3] - self.windowCoords[1]) * self.switches[i].position[0] + self.switches[i].position[1] + 15, 7, 50);
+        turtlePenColor(self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14]);
+        turtlePenSize(self.switches[i].size * 1.2);
+        double switchX = (self.windowCoords[2] - self.windowSide + self.windowCoords[2]) / 2;
+        double switchY = self.windowCoords[1] + (self.windowCoords[3] - self.windowCoords[1]) * self.switches[i].position[0] + self.switches[i].position[1];
+        turtleGoto(switchX - self.switches[i].size * 0.8, switchY);
+        turtlePenDown();
+        turtleGoto(switchX + self.switches[i].size * 0.8, switchY);
+        turtlePenUp();
+        turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+        turtlePenSize(self.switches[i].size);
+        if (*(self.switches[i].variable)) {
+            turtleGoto(switchX + self.switches[i].size * 0.8, switchY);
+        } else {
+            turtleGoto(switchX - self.switches[i].size * 0.8, switchY);
+        }
+        turtlePenDown();
+        turtlePenUp();
+        if (self.mouseDown) {
+            if (self.switches[i].status < 0) {
+                self.switches[i].status *= -1;
+            }
+        } else {
+            if (self.mx > switchX - self.dials[i].size && self.mx < switchX + self.dials[i].size && self.my > switchY - self.dials[i].size && self.my < switchY + self.dials[i].size) {
+                self.switches[i].status = -1;
+            } else {
+                self.switches[i].status = 0;
+            }
+        }
+        if (self.switches[i].status > 0) {
+            if (*(self.switches[i].variable)) {
+                *(self.switches[i].variable) = 0;
+            } else {
+                *(self.switches[i].variable) = 1;
+            }
+            self.switches[i].status = 0;
+        }
+    }
+}
+
 void renderWindow() {
     /* render window */
     turtlePenSize(2);
@@ -147,75 +284,12 @@ void renderWindow() {
     turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
     /* write title */
     textGLWriteString("Display", (self.windowCoords[0] + self.windowCoords[2] - self.windowSide) / 2, self.windowCoords[3] - self.windowTop * 0.45, self.windowTop * 0.5, 50);
-    /* draw sidebar */
-    textGLWriteString("X Scale", (self.windowCoords[2] - self.windowSide + self.windowCoords[2]) / 2, self.windowCoords[1] + (self.windowCoords[3] - self.windowCoords[1]) * 0.95 - self.windowTop, 7, 50);
-    textGLWriteString("Y Scale", (self.windowCoords[2] - self.windowSide + self.windowCoords[2]) / 2, self.windowCoords[1] + (self.windowCoords[3] - self.windowCoords[1]) * 0.95 - 40 - self.windowTop, 7, 50);
-    /* draw dials */
-    for (int i = 0; i < sizeof(self.dialVariable) / sizeof(double *); i++) {
-        turtlePenSize(self.dialSize[1] * 2);
-        double dialX = (self.windowCoords[2] - self.windowSide + self.windowCoords[2]) / 2;
-        double dialY = self.windowCoords[1] + (self.windowCoords[3] - self.windowCoords[1]) * self.dialPosition[i * 2] + self.dialPosition[i * 2 + 1];
-        turtleGoto(dialX, dialY);
-        turtlePenDown();
-        turtlePenUp();
-        turtlePenSize(self.dialSize[i] * 2 * 0.8);
-        turtlePenColor(self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5]);
-        turtlePenDown();
-        turtlePenUp();
-        turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
-        turtlePenSize(1);
-        turtlePenDown();
-        double dialAngle;
-        if (self.dialRange[i * 3] == DIAL_LOG) {
-            dialAngle = pow(360, (*(self.dialVariable[i]) - self.dialRange[i * 3 + 1]) / (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]));
-        } else if (self.dialRange[i * 3] == DIAL_LINEAR) {
-            dialAngle = (*(self.dialVariable[i]) - self.dialRange[i * 3 + 1]) / (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]) * 360;
-        } else if (self.dialRange[i * 3] == DIAL_EXP) {
-            dialAngle = 360 * (log(((*(self.dialVariable[i]) - self.dialRange[i * 3 + 1]) / (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1])) * 360 + 1) / log(361));
-        }
-        turtleGoto(dialX + sin(dialAngle / 57.2958) * self.dialSize[i], dialY + cos(dialAngle / 57.2958) * self.dialSize[i]);
-        turtlePenUp();
-        if (turtleMouseDown()) {
-            if (self.dialStatus[i * 2] < 0) {
-                self.dialAnchorX = dialX;
-                self.dialAnchorY = dialY;
-                self.dialStatus[i * 2] *= -1;
-                self.dialStatus[i * 2 + 1] = self.mx - dialX;
-            }
-        } else {
-            if (self.mx > dialX - self.dialSize[i] && self.mx < dialX + self.dialSize[i] && self.my > dialY - self.dialSize[i] && self.my < dialY + self.dialSize[i]) {
-                self.dialStatus[i * 2] = -1;
-            } else {
-                self.dialStatus[i * 2] = 0;
-            }
-        }
-        if (self.dialStatus[i * 2] > 0) {
-            dialAngle = angleBetween(self.dialAnchorX, self.dialAnchorY, self.mx, self.my);
-            if (self.my < self.dialAnchorY) {
-                self.dialStatus[i * 2 + 1] = self.mx - dialX;
-            }
-            if ((dialAngle < 0.0001 || dialAngle > 180) && self.my > self.dialAnchorY && self.dialStatus[i * 2 + 1] >= 0) {
-                dialAngle = 0.0001;
-            }
-            if ((dialAngle > 359.999 || dialAngle < 180) && self.my > self.dialAnchorY && self.dialStatus[i * 2 + 1] < 0) {
-                dialAngle = 359.999;
-            }
-            if (self.dialRange[i * 3] == DIAL_LOG) {
-                *(self.dialVariable[i]) = self.dialRange[i * 3 + 1] + (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]) * (log(dialAngle) / log(360));
-            } else if (self.dialRange[i * 3] == DIAL_LINEAR) {
-                *(self.dialVariable[i]) = self.dialRange[i * 3 + 1] + ((self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]) * dialAngle / 360);
-            } else if (self.dialRange[i * 3] == DIAL_EXP) {
-                *(self.dialVariable[i]) = self.dialRange[i * 3 + 1] + (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]) * ((pow(361, dialAngle / 360) - 1) / 360);
-            }
-        }
-        char bubble[24];
-        sprintf(bubble, "%.0lf", *(self.dialVariable[i]));
-        textGLWriteString(bubble, dialX + self.dialSize[i] + 3, dialY, 4, 0);
-    }
-
+    /* draw sidebar UI elements */
+    dialTick();
+    switchTick();
     /* window move and resize logic */
     /* move */
-    if (turtleMouseDown()) {
+    if (self.mouseDown) {
         if (self.move < 0) {
             self.anchorX = self.mx;
             self.anchorY = self.my;
@@ -237,7 +311,7 @@ void renderWindow() {
     }
     /* resize */
     double epsilon = 3;
-    if (turtleMouseDown()) {
+    if (self.mouseDown) {
         if (self.resize < 0) {
             self.resize *= -1;
             self.move = 0; // don't move and resize
@@ -328,7 +402,16 @@ void renderData() {
     /* render window background */
     turtleRentangle(self.windowCoords[0], self.windowCoords[1], self.windowCoords[2], self.windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
     /* render data */
-    self.rightBound = self.data -> length;
+    if (!self.stop) { 
+        self.rightBound = self.data -> length;
+    }
+    /* TODO - check this logic to ensure correctness */
+    if (self.rightBound - self.leftBound < self.windowSize) {
+        self.leftBound = self.rightBound - self.windowSize;
+        if (self.leftBound < 0) {
+            self.leftBound = 0;
+        }
+    }
     if (self.rightBound > self.leftBound + self.windowSize) {
         self.leftBound = self.rightBound - self.windowSize;
     }
@@ -393,7 +476,7 @@ void parseRibbonOutput() {
         if (ribbonRender.output[1] == 2) { // view
             if (ribbonRender.output[2] == 1) { // change theme
                 if (self.theme == 0) {
-                    self.theme = THEME_DARK;
+                    self.theme = self.themeDark;
                 } else {
                     self.theme = 0;
                 }
@@ -423,6 +506,7 @@ double randomDouble(double lowerBound, double upperBound) { // random double bet
 
 void utilLoop() {
     turtleGetMouseCoords(); // get the mouse coordinates
+    self.mouseDown = turtleMouseDown();
     if (turtle.mouseX > 320) { // bound mouse coordinates to window coordinates
         self.mx = 320;
     } else {
@@ -478,6 +562,7 @@ int main(int argc, char *argv[]) {
     /* initialiseTwin32tools */
     win32ToolsInit();
     win32FileDialogAddExtension("txt"); // add txt to extension restrictions
+    win32FileDialogAddExtension("csv"); // add csv to extension restrictions
 
     int tps = 60; // ticks per second (locked to fps in this case)
     uint64_t tick = 0;
