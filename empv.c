@@ -194,11 +194,11 @@ void renderWindow() {
             if (self.my < self.dialAnchorY) {
                 self.dialStatus[i * 2 + 1] = self.mx - dialX;
             }
-            if ((dialAngle < 0.001 || dialAngle > 180) && self.my > self.dialAnchorY && self.dialStatus[i * 2 + 1] >= 0) {
-                dialAngle = 0.001;
+            if ((dialAngle < 0.0001 || dialAngle > 180) && self.my > self.dialAnchorY && self.dialStatus[i * 2 + 1] >= 0) {
+                dialAngle = 0.0001;
             }
-            if ((dialAngle > 359.99 || dialAngle < 180) && self.my > self.dialAnchorY && self.dialStatus[i * 2 + 1] < 0) {
-                dialAngle = 359.99;
+            if ((dialAngle > 359.999 || dialAngle < 180) && self.my > self.dialAnchorY && self.dialStatus[i * 2 + 1] < 0) {
+                dialAngle = 359.999;
             }
             if (self.dialRange[i * 3] == DIAL_LOG) {
                 *(self.dialVariable[i]) = self.dialRange[i * 3 + 1] + (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]) * (log(dialAngle) / log(360));
