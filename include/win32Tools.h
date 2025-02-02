@@ -282,4 +282,13 @@ void win32SetCursor(LPCTSTR cursor) {
     HCURSOR hCursor = LoadCursor(NULL, cursor);
     SetCursor(hCursor);
 }
+
+void win32hideAndLockCursor() {
+    ShowCursor(false);
+}
+
+void win32showCursor() {
+    ShowCursor(true);
+}
+
 #endif

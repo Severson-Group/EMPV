@@ -14,7 +14,7 @@ typedef struct {
     double ribbonSize;
     double colors[12]; // (0, 1, 2) - ribbon colour, (3, 4, 5) - ribbon highlight & dropdown colour, (6, 7, 8) - dropdown highlight colour, (9, 10, 11) - text colour
     list_t *options;
-    list_t* lengths;
+    list_t *lengths;
 } ribbon;
 
 ribbon ribbonRender;
@@ -55,12 +55,12 @@ int ribbonInit(GLFWwindow* window, const char *filename) { // read from config f
     ribbonRender.options = list_init();
     ribbonRender.lengths = list_init();
 
-    FILE* configFile = fopen(filename, "r"); // load from config file
+    FILE *configFile = fopen(filename, "r"); // load from config file
     if (configFile == NULL) {
         printf("Error: file %s not found\n", filename);
         return -1;
     }
-    list_t* sublist = list_init();
+    list_t *sublist = list_init();
     int checksum = 0;
     char throw[256]; // maximum size of any option or sub-option (characters)
     int j = 0;
@@ -72,7 +72,7 @@ int ribbonInit(GLFWwindow* window, const char *filename) { // read from config f
             whitespace += 1;
         } else {
             if (j != 0) {
-                list_t* appendList = list_init();
+                list_t *appendList = list_init();
                 list_copy(sublist, appendList);
                 list_clear(sublist);
                 list_append(ribbonRender.options, (unitype) appendList, 'r');
@@ -82,7 +82,7 @@ int ribbonInit(GLFWwindow* window, const char *filename) { // read from config f
         j++;
     }
     list_pop(sublist);
-    list_t* appendList = list_init();
+    list_t *appendList = list_init();
     list_copy(sublist, appendList);
     list_clear(sublist);
     list_append(ribbonRender.options, (unitype) appendList, 'r');

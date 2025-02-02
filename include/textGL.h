@@ -295,8 +295,8 @@ void textGLWrite(const unsigned int *text, int textLength, double x, double y, d
     // turtlePenShape("connected"); // fast
     // turtlePenShape("circle"); // pretty
     turtlePenShape("text"); // dedicated setting that blends circle and connected
-    list_t* xvals = list_init();
-    list_t* dataIndStored = list_init();
+    list_t *xvals = list_init();
+    list_t *dataIndStored = list_init();
     for (int i = 0; i < textLength; i++) {
         int currentDataAddress = 0;
         for (int j = 0; j < textGLRender.charCount; j++) { // change to hashmap later

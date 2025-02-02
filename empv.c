@@ -7,10 +7,15 @@ parseRibbonOutput function added as example */
 #include "include/win32Tools.h"
 #include <time.h>
 
-#define THEME_DARK 15
+#define THEME_DARK     15
+
+#define DIAL_LINEAR    0
+#define DIAL_LOG       1
+#define DIAL_EXP       2
 
 typedef struct { // all empv variables (shared state) are defined here
     list_t *data; // a list of all data collected through ethernet
+    list_t *logVariables; // a list of variables logged on the AMDC
     /* mouse variables */
     double mx;
     double my;
@@ -20,9 +25,10 @@ typedef struct { // all empv variables (shared state) are defined here
     int rightBound; // right bound (index in data list)
     double bottomBound; // bottom bound (y value)
     double topBound; // top bound (y value)
-    int windowSize; // size of window (index in data list)
+    double windowSize; // size of window (index in data list)
     double windowCoords[4]; // coordinates of window on canvas
     double windowTop; // size of window top bar
+    double windowSide; // size of window side bar
     double windowMinX; // window size on canvas minimum
     double windowMinY; // window size on canvas minimum
     int move; // moving window
@@ -30,15 +36,25 @@ typedef struct { // all empv variables (shared state) are defined here
     double anchorY;
     double anchorPoints[4];
     int resize; // resizing window
+    /* dial variables */
+    double dialRange[6];
+    double dialSize[2];
+    double *dialVariable[2];
+    int dialStatus[4];
+    double dialPosition[4];
+    double dialAnchorX;
+    double dialAnchorY;
     /* color variables */
     int theme;
     double themeColors[90];
 } empv;
 
-void init(empv *selfp) { // initialises the empv variabes (shared state)
-    empv self = *selfp;
+empv self; // global state
+
+void init() { // initialises the empv variabes (shared state)
     /* data */
     self.data = list_init();
+    self.logVariables = list_init();
     /* window */
     self.leftBound = 0;
     self.rightBound = 0;
@@ -50,12 +66,32 @@ void init(empv *selfp) { // initialises the empv variabes (shared state)
     self.windowCoords[2] = 240;
     self.windowCoords[3] = 160;
     self.windowTop = 15;
-    self.windowMinX = 50;
-    self.windowMinY = 50 + self.windowTop;
+    self.windowSide = 50;
+    self.windowMinX = 50 + self.windowSide;
+    self.windowMinY = 80 + self.windowTop;
     self.move = 0;
     self.anchorX = 0;
     self.anchorY = 0;
     self.resize = 0;
+    /* dial */
+    self.dialRange[0] = DIAL_EXP;
+    self.dialRange[1] = 1;
+    self.dialRange[2] = 1000;
+    self.dialRange[3] = DIAL_EXP;
+    self.dialRange[4] = 30;
+    self.dialRange[5] = 10000;
+    self.dialSize[0] = 8;
+    self.dialSize[1] = 8;
+    self.dialStatus[0] = 0;
+    self.dialStatus[2] = 0;
+    self.dialVariable[0] = &self.windowSize;
+    self.dialVariable[1] = &self.topBound;
+    self.dialPosition[0] = 0.95;
+    self.dialPosition[1] = -15 - self.windowTop;
+    self.dialPosition[2] = 0.95;
+    self.dialPosition[3] = -55 - self.windowTop;
+    self.dialAnchorX = 0;
+    self.dialAnchorY = 0;
     /* color */
     self.theme = THEME_DARK;
     double themeCopy[30] = {
@@ -80,11 +116,22 @@ void init(empv *selfp) { // initialises the empv variabes (shared state)
         ribbonDarkTheme();
         popupDarkTheme();
     }
-    *selfp = self;
 }
 
-void renderWindow(empv *selfp) {
-    empv self = *selfp;
+double angleBetween(double x1, double y1, double x2, double y2) {
+    double output;
+    if (y2 - y1 < 0) {
+        output = 180 + atan((x2 - x1) / (y2 - y1)) * 57.2958;
+    } else {
+        output = atan((x2 - x1) / (y2 - y1)) * 57.2958;
+    }
+    if (output < 0) {
+        output += 360;
+    }
+    return output;
+}
+
+void renderWindow() {
     /* render window */
     turtlePenSize(2);
     turtlePenColor(self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5]);
@@ -94,10 +141,75 @@ void renderWindow(empv *selfp) {
     turtleGoto(self.windowCoords[2], self.windowCoords[3]);
     turtleGoto(self.windowCoords[2], self.windowCoords[1]);
     turtleGoto(self.windowCoords[0], self.windowCoords[1]);
-    turtleRentangle(self.windowCoords[0], self.windowCoords[3], self.windowCoords[2], self.windowCoords[3] - self.windowTop, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
     turtlePenUp();
+    turtleRentangle(self.windowCoords[0], self.windowCoords[3], self.windowCoords[2], self.windowCoords[3] - self.windowTop, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
+    turtleRentangle(self.windowCoords[2] - self.windowSide, self.windowCoords[1], self.windowCoords[2], self.windowCoords[3], self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
     turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
-    textGLWriteString("Display", (self.windowCoords[0] + self.windowCoords[2]) / 2, self.windowCoords[3] - self.windowTop * 0.45, self.windowTop * 0.5, 50);
+    /* write title */
+    textGLWriteString("Display", (self.windowCoords[0] + self.windowCoords[2] - self.windowSide) / 2, self.windowCoords[3] - self.windowTop * 0.45, self.windowTop * 0.5, 50);
+    /* draw sidebar */
+    textGLWriteString("X Scale", (self.windowCoords[2] - self.windowSide + self.windowCoords[2]) / 2, self.windowCoords[1] + (self.windowCoords[3] - self.windowCoords[1]) * 0.95 - self.windowTop, 7, 50);
+    textGLWriteString("Y Scale", (self.windowCoords[2] - self.windowSide + self.windowCoords[2]) / 2, self.windowCoords[1] + (self.windowCoords[3] - self.windowCoords[1]) * 0.95 - 40 - self.windowTop, 7, 50);
+    /* draw dials */
+    for (int i = 0; i < sizeof(self.dialVariable) / sizeof(double *); i++) {
+        turtlePenSize(self.dialSize[1] * 2);
+        double dialX = (self.windowCoords[2] - self.windowSide + self.windowCoords[2]) / 2;
+        double dialY = self.windowCoords[1] + (self.windowCoords[3] - self.windowCoords[1]) * self.dialPosition[i * 2] + self.dialPosition[i * 2 + 1];
+        turtleGoto(dialX, dialY);
+        turtlePenDown();
+        turtlePenUp();
+        turtlePenSize(self.dialSize[i] * 2 * 0.8);
+        turtlePenColor(self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5]);
+        turtlePenDown();
+        turtlePenUp();
+        turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+        turtlePenSize(1);
+        turtlePenDown();
+        double dialAngle;
+        if (self.dialRange[i * 3] == DIAL_LOG) {
+            dialAngle = pow(360, (*(self.dialVariable[i]) - self.dialRange[i * 3 + 1]) / (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]));
+        } else if (self.dialRange[i * 3] == DIAL_LINEAR) {
+            dialAngle = (*(self.dialVariable[i]) - self.dialRange[i * 3 + 1]) / (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]) * 360;
+        } else if (self.dialRange[i * 3] == DIAL_EXP) {
+            dialAngle = 360 * (log(((*(self.dialVariable[i]) - self.dialRange[i * 3 + 1]) / (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1])) * 360) / log(360));
+        }
+        turtleGoto(dialX + sin(dialAngle / 57.2958) * self.dialSize[i], dialY + cos(dialAngle / 57.2958) * self.dialSize[i]);
+        turtlePenUp();
+        if (turtleMouseDown()) {
+            if (self.dialStatus[i * 2] < 0) {
+                self.dialAnchorX = dialX;
+                self.dialAnchorY = dialY;
+                self.dialStatus[i * 2] *= -1;
+                self.dialStatus[i * 2 + 1] = self.mx - dialX;
+            }
+        } else {
+            if (self.mx > dialX - self.dialSize[i] && self.mx < dialX + self.dialSize[1] && self.my > dialY - self.dialSize[i] && self.my < dialY + self.dialSize[i]) {
+                self.dialStatus[i * 2] = -1;
+            } else {
+                self.dialStatus[i * 2] = 0;
+            }
+        }
+        if (self.dialStatus[i * 2] > 0) {
+            dialAngle = angleBetween(self.dialAnchorX, self.dialAnchorY, self.mx, self.my);
+            if (self.my < self.dialAnchorY) {
+                self.dialStatus[i * 2 + 1] = self.mx - dialX;
+            }
+            if ((dialAngle < 0.001 || dialAngle > 180) && self.my > self.dialAnchorY && self.dialStatus[i * 2 + 1] >= 0) {
+                dialAngle = 0.001;
+            }
+            if ((dialAngle > 359.99 || dialAngle < 180) && self.my > self.dialAnchorY && self.dialStatus[i * 2 + 1] < 0) {
+                dialAngle = 359.99;
+            }
+            if (self.dialRange[i * 3] == DIAL_LOG) {
+                *(self.dialVariable[i]) = self.dialRange[i * 3 + 1] + (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]) * (log(dialAngle) / log(360));
+            } else if (self.dialRange[i * 3] == DIAL_LINEAR) {
+                *(self.dialVariable[i]) = self.dialRange[i * 3 + 1] + ((self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]) * dialAngle / 360);
+            } else if (self.dialRange[i * 3] == DIAL_EXP) {
+                *(self.dialVariable[i]) = self.dialRange[i * 3 + 1] + (self.dialRange[i * 3 + 2] - self.dialRange[i * 3 + 1]) * (pow(360, dialAngle / 360) / 360);
+            }
+            // printf("%lf\n", *(self.dialVariable[i]));
+        }
+    }
 
     /* window move and resize logic */
     /* move */
@@ -191,11 +303,10 @@ void renderWindow(empv *selfp) {
             break;
         }
     }
-    *selfp = self;
 }
 
-void renderData(empv* selfp) {
-    empv self = *selfp;
+void renderData() {
+    self.bottomBound = self.topBound * -1;
     /* render window background */
     turtleRentangle(self.windowCoords[0], self.windowCoords[1], self.windowCoords[2], self.windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
     /* render data */
@@ -205,17 +316,15 @@ void renderData(empv* selfp) {
     }
     turtlePenSize(1);
     turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
-    double xquantum = (self.windowCoords[2] - self.windowCoords[0]) / (self.rightBound - self.leftBound - 1);
+    double xquantum = (self.windowCoords[2] - self.windowSide - self.windowCoords[0]) / (self.rightBound - self.leftBound - 1);
     for (int i = 0; i < self.rightBound - self.leftBound; i++) {
         turtleGoto(self.windowCoords[0] + i * xquantum, self.windowCoords[1] + ((self.data -> data[self.leftBound + i].d - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.windowCoords[3] - self.windowTop - self.windowCoords[1]));
         turtlePenDown();
     }
     turtlePenUp();
-    *selfp = self;
 }
 
-void parseRibbonOutput(empv* selfp) {
-    empv self = *selfp;
+void parseRibbonOutput() {
     if (ribbonRender.output[0] == 1) {
         ribbonRender.output[0] = 0; // untoggle
         if (ribbonRender.output[1] == 0) { // file
@@ -284,7 +393,6 @@ void parseRibbonOutput(empv* selfp) {
             } 
         }
     }
-    *selfp = self;
 }
 
 int randomInt(int lowerBound, int upperBound) { // random integer between lower and upper bound (inclusive)
@@ -295,32 +403,32 @@ double randomDouble(double lowerBound, double upperBound) { // random double bet
     return (rand() * (upperBound - lowerBound) / RAND_MAX + lowerBound); // probably works idk
 }
 
-void utilLoop(empv *selfp) {
+void utilLoop() {
     turtleGetMouseCoords(); // get the mouse coordinates
     if (turtle.mouseX > 320) { // bound mouse coordinates to window coordinates
-        selfp -> mx = 320;
+        self.mx = 320;
     } else {
         if (turtle.mouseX < -320) {
-            selfp -> mx = -320;
+            self.mx = -320;
         } else {
-            selfp -> mx = turtle.mouseX;
+            self.mx = turtle.mouseX;
         }
     }
     if (turtle.mouseY > 180) {
-        selfp -> my = 180;
+        self.my = 180;
     } else {
         if (turtle.mouseY < -180) {
-            selfp -> my = -180;
+            self.my = -180;
         } else {
-            selfp -> my = turtle.mouseY;
+            self.my = turtle.mouseY;
         }
     }
-    selfp -> mw = turtleMouseWheel();
+    self.mw = turtleMouseWheel();
     if (turtleKeyPressed(GLFW_KEY_UP)) {
-        selfp -> mw += 1;
+        self.mw += 1;
     }
     if (turtleKeyPressed(GLFW_KEY_DOWN)) {
-        selfp -> mw -= 1;
+        self.mw -= 1;
     }
     turtleClear();
 }
@@ -334,13 +442,13 @@ int main(int argc, char *argv[]) {
     glfwWindowHint(GLFW_SAMPLES, 4); // MSAA (Anti-Aliasing) with 4 samples (must be done before window is created (?))
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(1280, 720, "EMPV", NULL, NULL);
+    window = glfwCreateWindow(1728, 972, "EMPV", NULL, NULL);
     if (!window) {
         glfwTerminate();
         return -1;
     }
     glfwMakeContextCurrent(window);
-    glfwSetWindowSizeLimits(window, 128, 72, 1280, 720);
+    glfwSetWindowSizeLimits(window, 128, 72, 1728, 972);
 
     /* initialize turtle */
     turtleInit(window, -320, -180, 320, 180);
@@ -359,21 +467,20 @@ int main(int argc, char *argv[]) {
     clock_t start;
     clock_t end;
 
-    empv self;
-    init(&self); // initialise empv
+    init(); // initialise empv
     turtleBgColor(self.themeColors[self.theme + 0], self.themeColors[self.theme + 1], self.themeColors[self.theme + 2]);
 
     while (turtle.close == 0) { // main loop
         start = clock();
         double sinValue = sin(tick / 5.0) * 50;
         list_append(self.data, (unitype) sinValue, 'd');
-        utilLoop(&self);
+        utilLoop();
         turtleGetMouseCoords(); // get the mouse coordinates (turtle.mouseX, turtle.mouseY)
         turtleClear();
-        renderData(&self);
-        renderWindow(&self);
+        renderData();
+        renderWindow();
         ribbonUpdate();
-        parseRibbonOutput(&self);
+        parseRibbonOutput();
         turtleUpdate(); // update the screen
         end = clock();
         while ((double) (end - start) / CLOCKS_PER_SEC < (1.0 / tps)) {
