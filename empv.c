@@ -729,28 +729,38 @@ void renderFreqData() {
     self.bottomBound = self.topBound * -1;
     /* render window background */
     turtleRentangle(self.freqWindowCoords[0], self.freqWindowCoords[1], self.freqWindowCoords[2], self.freqWindowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+    /* linear windowing function over 10% of the sample */
+    int threshold = (self.rightBound - self.leftBound) * 0.1;
+    double damping = 1.0 / threshold;
     list_clear(self.freqData);
     for (int i = 0; i < self.rightBound - self.leftBound; i++) {
+        double dataPoint = self.data -> data[i + self.leftBound].d;
+        if (i < threshold) {
+            dataPoint *= damping * (i + 1);
+        }
+        if (i >= self.rightBound - threshold) {
+            dataPoint *= damping * (self.rightBound - (i - 1));
+        }
         list_append(self.freqData, (unitype) (i / 60.0), 'd');
-        list_append(self.freqData, self.data -> data[i + self.leftBound], 'd');
+        list_append(self.freqData, (unitype) dataPoint, 'd');
     }
     // list_print(self.freqData);
-    list_t *tempData = FFT(self.freqData);
+    // list_t *tempData = FFT(self.freqData);
     // list_print(tempData);
-    turtlePenSize(1);
-    turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
-    double xquantum = (self.freqWindowCoords[2] - self.freqWindowCoords[0]) / ((tempData -> length) / 2 - 1);
-    for (int i = 0; i < (tempData -> length) / 2; i++) {
-        double magnitude = tempData -> data[i * 2].d * tempData -> data[i * 2].d + tempData -> data[i * 2 + 1].d * tempData -> data[i * 2 + 1].d;
-        turtleGoto(self.freqWindowCoords[0] + i * xquantum, self.freqWindowCoords[1] + ((magnitude - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.freqWindowCoords[3] - self.freqWindowTop - self.freqWindowCoords[1]));
-        turtlePenDown();
-    }
-    turtlePenUp();
-    list_free(tempData);
+    // turtlePenSize(1);
+    // turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
+    // double xquantum = (self.freqWindowCoords[2] - self.freqWindowCoords[0]) / ((tempData -> length) / 2 - 1);
+    // for (int i = 0; i < (tempData -> length) / 2; i++) {
+    //     double magnitude = tempData -> data[i * 2].d * tempData -> data[i * 2].d + tempData -> data[i * 2 + 1].d * tempData -> data[i * 2 + 1].d;
+    //     turtleGoto(self.freqWindowCoords[0] + i * xquantum, self.freqWindowCoords[1] + ((magnitude - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.freqWindowCoords[3] - self.freqWindowTop - self.freqWindowCoords[1]));
+    //     turtlePenDown();
+    // }
+    // turtlePenUp();
+    // list_free(tempData);
 }
 
 void renderData() {
-    // renderFreqData();
+    renderFreqData();
     renderOscData();
 }
 
@@ -873,13 +883,15 @@ int main(int argc, char *argv[]) {
     glfwWindowHint(GLFW_SAMPLES, 4); // MSAA (Anti-Aliasing) with 4 samples (must be done before window is created (?))
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(1728, 972, "EMPV", NULL, NULL);
+    window = glfwCreateWindow(3456, 1944, "EMPV", NULL, NULL);
     if (!window) {
         glfwTerminate();
         return -1;
     }
     glfwMakeContextCurrent(window);
-    glfwSetWindowSizeLimits(window, 128, 72, 1728, 972);
+    glfwSetWindowSizeLimits(window, 128, 72, 3456, 1944);
+    int width, height, oldWidth, oldHeight;
+    glfwGetWindowSize(window, &oldWidth, &oldHeight);
 
     /* initialize turtle */
     turtleInit(window, -320, -180, 320, 180);
@@ -915,6 +927,13 @@ int main(int argc, char *argv[]) {
         renderWindow();
         ribbonUpdate();
         parseRibbonOutput();
+        glfwGetWindowSize(window, &width, &height);
+        if (width != oldWidth || height != oldHeight) {
+            printf("window size change\n");
+            oldWidth = width;
+            oldHeight = height;
+            turtleSetWorldCoordinates(-320, -180, 320, 180); // doesn't work correctly
+        }
         turtleUpdate(); // update the screen
         end = clock();
         while ((double) (end - start) / CLOCKS_PER_SEC < (1.0 / tps)) {
