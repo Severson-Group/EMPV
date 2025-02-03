@@ -68,6 +68,7 @@ typedef struct { // all the empv shared state is here
         int themeDark;
         double themeColors[90];
     /* frequency view */
+        list_t *freqData;
         double freqWindowCoords[4]; // coordinates of window on canvas
         double freqWindowTop; // size of window top bar
         double freqWindowSide; // size of window side bar
@@ -160,6 +161,7 @@ void init() { // initialises the empv variabes (shared state)
     }
 
     /* frequency */
+    self.freqData = list_init();
     self.freqWindowCoords[0] = -317;
     self.freqWindowCoords[1] = -120;
     self.freqWindowCoords[2] = 317;
@@ -183,6 +185,48 @@ double angleBetween(double x1, double y1, double x2, double y2) {
         output += 360;
     }
     return output;
+}
+
+list_t *FFT(list_t *samples) {
+    /* format of samples and output is [real1, imag1, real2, imag2, real3, imag3, ...]
+    Algorithm from: https://www.youtube.com/watch?v=htCj9exbGo0
+    */
+    int N = (samples -> length) / 2;
+    if (N <= 1) {
+        list_t *samplesCopy = list_init();
+        list_copy(samplesCopy, samples);
+        return samplesCopy;
+    }
+    int M = N / 2;
+    list_t *Xeven = list_init();
+    list_t *Xodd = list_init();
+    for (int i = 0; i < M; i++) {
+        list_append(Xeven, samples -> data[i * 4], 'd');
+        list_append(Xeven, samples -> data[i * 4 + 1], 'd');
+        list_append(Xodd, samples -> data[i * 4 + 2], 'd');
+        list_append(Xodd, samples -> data[i * 4 + 3], 'd');
+    }
+    list_t *Feven = list_init();
+    list_t *Fodd = list_init();
+    Feven = FFT(Xeven);
+    Fodd = FFT(Xodd);
+    list_t *freqBins = list_init();
+    for (int i = 0; i < N; i++) {
+        list_append(freqBins, (unitype) 0, 'd');
+    }
+    for (int i = 0; i < N / 2; i++) {
+        double subreal = 1.0 * cos(-2 * M_PI * i / N);
+        double subginary = 1.0 * sin(-2 * M_PI * i / N);
+        double real = subreal * Fodd -> data[i * 2].d - subginary * Fodd -> data[i * 2 + 1].d;
+        double imaginary = subreal * Fodd -> data[i * 2 + 1].d + subginary * Fodd -> data[i * 2].d;
+        freqBins -> data[i * 2].d = Feven -> data[i * 2].d + real;
+        freqBins -> data[i * 2 + 1].d = Feven -> data[i * 2 + 1].d + imaginary;
+    }
+    list_free(Feven);
+    list_free(Fodd);
+    list_free(Xeven);
+    list_free(Xodd);
+    return freqBins;
 }
 
 void dialTick() {
@@ -685,10 +729,28 @@ void renderFreqData() {
     self.bottomBound = self.topBound * -1;
     /* render window background */
     turtleRentangle(self.freqWindowCoords[0], self.freqWindowCoords[1], self.freqWindowCoords[2], self.freqWindowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+    list_clear(self.freqData);
+    for (int i = 0; i < self.rightBound - self.leftBound; i++) {
+        list_append(self.freqData, (unitype) (i / 60.0), 'd');
+        list_append(self.freqData, self.data -> data[i + self.leftBound], 'd');
+    }
+    // list_print(self.freqData);
+    list_t *tempData = FFT(self.freqData);
+    // list_print(tempData);
+    turtlePenSize(1);
+    turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
+    double xquantum = (self.freqWindowCoords[2] - self.freqWindowCoords[0]) / ((tempData -> length) / 2 - 1);
+    for (int i = 0; i < (tempData -> length) / 2; i++) {
+        double magnitude = tempData -> data[i * 2].d * tempData -> data[i * 2].d + tempData -> data[i * 2 + 1].d * tempData -> data[i * 2 + 1].d;
+        turtleGoto(self.freqWindowCoords[0] + i * xquantum, self.freqWindowCoords[1] + ((magnitude - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.freqWindowCoords[3] - self.freqWindowTop - self.freqWindowCoords[1]));
+        turtlePenDown();
+    }
+    turtlePenUp();
+    list_free(tempData);
 }
 
 void renderData() {
-    renderFreqData();
+    // renderFreqData();
     renderOscData();
 }
 
@@ -845,6 +907,7 @@ int main(int argc, char *argv[]) {
         double sinValue1 = sin(tick / 5.0) * 25;
         double sinValue2 = sin(tick / 3.37) * 25;
         list_append(self.data, (unitype) (sinValue1 + sinValue2), 'd');
+        // list_append(self.data, (unitype) (sinValue2), 'd');
         utilLoop();
         turtleGetMouseCoords(); // get the mouse coordinates (turtle.mouseX, turtle.mouseY)
         turtleClear();
