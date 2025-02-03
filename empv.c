@@ -2,6 +2,9 @@
 Features:
 - Oscilloscope-like interface
 - Frequency graph
+
+
+Ethernet documentation: https://learn.microsoft.com/en-us/windows/win32/winsock/tcp-ip-raw-sockets-2
 */
 
 #include "include/ribbon.h"
@@ -12,6 +15,9 @@ Features:
 #define DIAL_LINEAR    0
 #define DIAL_LOG       1
 #define DIAL_EXP       2
+
+#define WINDOW_OSC     1
+#define WINDOW_FREQ    2
 
 typedef struct { // dial
     char label[24];
@@ -35,6 +41,7 @@ typedef struct { // all the empv shared state is here
     /* general */
         list_t *data; // a list of all data collected through ethernet
         list_t *logVariables; // a list of variables logged on the AMDC
+        list_t *windowRender; // a list of window render functions
         /* mouse variables */
         double mx; // mouseX
         double my; // mouseY
@@ -56,6 +63,7 @@ typedef struct { // all the empv shared state is here
         double oscWindowMinX; // window size on canvas minimum
         double oscWindowMinY; // window size on canvas minimum
         int oscMove; // moving window
+        int oscClick;
         int oscResize; // resizing window
         int stop;
         /* ui variables */
@@ -75,6 +83,7 @@ typedef struct { // all the empv shared state is here
         double freqWindowMinX; // window size on canvas minimum
         double freqWindowMinY; // window size on canvas minimum
         int freqMove; // moving window
+        int freqClick;
         int freqResize; // resizing window
 } empv_t;
 
@@ -105,6 +114,9 @@ void init() { // initialises the empv variabes (shared state)
     /* data */
     self.data = list_init();
     self.logVariables = list_init();
+    self.windowRender = list_init();
+    list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
+    list_append(self.windowRender, (unitype) WINDOW_OSC, 'i');
     /* window */
     self.leftBound = 0;
     self.rightBound = 0;
@@ -119,9 +131,10 @@ void init() { // initialises the empv variabes (shared state)
     self.oscWindowSide = 50;
     self.oscWindowMinX = 60 + self.oscWindowSide;
     self.oscWindowMinY = 120 + self.oscWindowTop;
-    self.oscMove = 0;
     self.anchorX = 0;
     self.anchorY = 0;
+    self.oscMove = 0;
+    self.oscClick = 0;
     self.oscResize = 0;
     self.stop = 0;
     /* ui */
@@ -171,6 +184,7 @@ void init() { // initialises the empv variabes (shared state)
     self.freqWindowMinX = 52 + self.freqWindowSide;
     self.freqWindowMinY = 120 + self.freqWindowTop;
     self.freqMove = 0;
+    self.freqClick = 0;
     self.freqResize = 0;
 }
 
@@ -366,11 +380,21 @@ void renderOscWindow() {
             memcpy(self.anchorPoints, self.oscWindowCoords, sizeof(double) * 4);
             self.oscMove *= -1;
         }
+        if (self.oscClick == 1) {
+            self.oscClick = 0;
+            list_remove(self.windowRender, (unitype) WINDOW_OSC, 'i');
+            list_append(self.windowRender, (unitype) WINDOW_OSC, 'i');
+        }
     } else {
         if (self.mx > self.oscWindowCoords[0] && self.mx < self.oscWindowCoords[2] && self.my > self.oscWindowCoords[3] - self.oscWindowTop && self.my < self.oscWindowCoords[3]) {
             self.oscMove = -1;
         } else {
             self.oscMove = 0;
+        }
+        if (self.mx > self.oscWindowCoords[0] && self.mx < self.oscWindowCoords[2] && self.my > self.oscWindowCoords[1] && self.my < self.oscWindowCoords[3]) {
+            self.oscClick = 1;
+        } else {
+            self.oscClick = 0;
         }
     }
     if (self.oscMove > 0) {
@@ -543,11 +567,21 @@ void renderFreqWindow() {
             memcpy(self.anchorPoints, self.freqWindowCoords, sizeof(double) * 4);
             self.freqMove *= -1;
         }
+        if (self.freqClick == 1) {
+            self.freqClick = 0;
+            list_remove(self.windowRender, (unitype) WINDOW_FREQ, 'i');
+            list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
+        }
     } else {
         if (self.mx > self.freqWindowCoords[0] && self.mx < self.freqWindowCoords[2] && self.my > self.freqWindowCoords[3] - self.freqWindowTop && self.my < self.freqWindowCoords[3]) {
             self.freqMove = -1;
         } else {
             self.freqMove = 0;
+        }
+        if (self.mx > self.freqWindowCoords[0] && self.mx < self.freqWindowCoords[2] && self.my > self.freqWindowCoords[1] && self.my < self.freqWindowCoords[3]) {
+            self.freqClick = 1;
+        } else {
+            self.freqClick = 0;
         }
     }
     if (self.freqMove > 0) {
@@ -692,11 +726,6 @@ void renderFreqWindow() {
     }
 }
 
-void renderWindow() {
-    renderFreqWindow();
-    renderOscWindow();
-}
-
 void renderOscData() {
     self.bottomBound = self.topBound * -1;
     /* render window background */
@@ -759,9 +788,21 @@ void renderFreqData() {
     // list_free(tempData);
 }
 
-void renderData() {
-    renderFreqData();
-    renderOscData();
+void renderOrder() {
+    for (int i = 0; i < self.windowRender -> length; i++) {
+        switch (self.windowRender -> data[i].i) {
+        case WINDOW_OSC:
+            renderOscData();
+            renderOscWindow();
+        break;
+        case WINDOW_FREQ:
+            renderFreqData();
+            renderFreqWindow();
+        break;
+        default:
+        break;    
+        }
+    }
 }
 
 void parseRibbonOutput() {
@@ -923,8 +964,7 @@ int main(int argc, char *argv[]) {
         utilLoop();
         turtleGetMouseCoords(); // get the mouse coordinates (turtle.mouseX, turtle.mouseY)
         turtleClear();
-        renderData();
-        renderWindow();
+        renderOrder();
         ribbonUpdate();
         parseRibbonOutput();
         glfwGetWindowSize(window, &width, &height);
