@@ -21,6 +21,7 @@ Ethernet documentation: https://learn.microsoft.com/en-us/windows/win32/winsock/
 
 typedef struct { // dial
     char label[24];
+    int window;
     int type;
     int status[2];
     double size;
@@ -31,17 +32,32 @@ typedef struct { // dial
 
 typedef struct { // switch
     char label[24];
+    int window;
     int status;
     double size;
     double position[2];
     int *variable;
 } switch_t;
 
+typedef struct { // general window attributes
+    double windowCoords[4];
+    double windowTop;
+    double windowSide;
+    double windowMinX;
+    double windowMinY;
+    int minimized;
+    int move;
+    int click;
+    int resize;
+    list_t *dials;
+    list_t *switches;
+} window_t;
+
 typedef struct { // all the empv shared state is here
     /* general */
         list_t *data; // a list of all data collected through ethernet
         list_t *logVariables; // a list of variables logged on the AMDC
-        list_t *windowRender; // a list of window render functions
+        list_t *windowRender; // which order to render windows in
         /* mouse variables */
         double mx; // mouseX
         double my; // mouseY
@@ -49,32 +65,22 @@ typedef struct { // all the empv shared state is here
         char mouseDown;  // mouse down
         double anchorX;
         double anchorY;
+        double dialAnchorX;
+        double dialAnchorY;
         double anchorPoints[4];
+        /* color variables */
+        int theme;
+        int themeDark;
+        double themeColors[90];
     /* oscilloscope view */
         /* window variables */
+        window_t osc;
         int leftBound; // left bound (index in data list)
         int rightBound; // right bound (index in data list)
         double bottomBound; // bottom bound (y value)
         double topBound; // top bound (y value)
         double windowSize; // size of window (index in data list)
-        double oscWindowCoords[4]; // coordinates of window on canvas
-        double oscWindowTop; // size of window top bar
-        double oscWindowSide; // size of window side bar
-        double oscWindowMinX; // window size on canvas minimum
-        double oscWindowMinY; // window size on canvas minimum
-        int oscMove; // moving window
-        int oscClick;
-        int oscResize; // resizing window
-        int stop;
-        /* ui variables */
-        dial_t dials[2];
-        double dialAnchorX;
-        double dialAnchorY;
-        switch_t switches[1];
-        /* color variables */
-        int theme;
-        int themeDark;
-        double themeColors[90];
+        int stop; // pause and unpause
     /* frequency view */
         list_t *freqData;
         double freqWindowCoords[4]; // coordinates of window on canvas
@@ -89,9 +95,11 @@ typedef struct { // all the empv shared state is here
 
 empv_t self; // global state
 
-void dialInit(dial_t *dial, char *label, double *variable, int type, double yScale, double yOffset, double size, double bottom, double top) {
+dial_t *dialInit(char *label, double *variable, int window, int type, double yScale, double yOffset, double size, double bottom, double top) {
+    dial_t *dial = malloc(sizeof(dial_t));
     memcpy(dial -> label, label, strlen(label) + 1);
     dial -> status[0] = 0;
+    dial -> window = window;
     dial -> type = type;
     dial -> position[0] = yScale;
     dial -> position[1] = yOffset;
@@ -101,9 +109,11 @@ void dialInit(dial_t *dial, char *label, double *variable, int type, double ySca
     dial -> variable = variable;
 }
 
-void switchInit(switch_t *switchp, char *label, int *variable, double yScale, double yOffset, double size) {
+switch_t *switchInit(char *label, int *variable, int window, double yScale, double yOffset, double size) {
+    switch_t *switchp = malloc(sizeof(switch_t));
     memcpy(switchp -> label, label, strlen(label) + 1);
     switchp -> status = 0;
+    switchp -> window = window;
     switchp -> position[0] = yScale;
     switchp -> position[1] = yOffset;
     switchp -> size = size;
@@ -117,32 +127,35 @@ void init() { // initialises the empv variabes (shared state)
     self.windowRender = list_init();
     list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
     list_append(self.windowRender, (unitype) WINDOW_OSC, 'i');
-    /* window */
+    self.anchorX = 0;
+    self.anchorY = 0;
+    self.dialAnchorX = 0;
+    self.dialAnchorY = 0;
+    /* osc */
     self.leftBound = 0;
     self.rightBound = 0;
     self.bottomBound = -100;
     self.topBound = 100;
     self.windowSize = 200;
-    self.oscWindowCoords[0] = -317;
-    self.oscWindowCoords[1] = 25;
-    self.oscWindowCoords[2] = 317;
-    self.oscWindowCoords[3] = 167;
-    self.oscWindowTop = 15;
-    self.oscWindowSide = 50;
-    self.oscWindowMinX = 60 + self.oscWindowSide;
-    self.oscWindowMinY = 120 + self.oscWindowTop;
-    self.anchorX = 0;
-    self.anchorY = 0;
-    self.oscMove = 0;
-    self.oscClick = 0;
-    self.oscResize = 0;
+    self.osc.windowCoords[0] = -317;
+    self.osc.windowCoords[1] = 25;
+    self.osc.windowCoords[2] = 317;
+    self.osc.windowCoords[3] = 167;
+    self.osc.windowTop = 15;
+    self.osc.windowSide = 50;
+    self.osc.windowMinX = 60 + self.osc.windowSide;
+    self.osc.windowMinY = 120 + self.osc.windowTop;
+    self.osc.minimized = 0;
+    self.osc.move = 0;
+    self.osc.click = 0;
+    self.osc.resize = 0;
     self.stop = 0;
     /* ui */
-    dialInit(&self.dials[0], "X Scale", &self.windowSize, DIAL_EXP, 1, -25 - self.oscWindowTop, 8, 1, 1000);
-    dialInit(&self.dials[1], "Y Scale", &self.topBound, DIAL_EXP, 1, -65 - self.oscWindowTop, 8, 50, 10000);
-    self.dialAnchorX = 0;
-    self.dialAnchorY = 0;
-    switchInit(&self.switches[0], "Pause", &self.stop, 1, -100 - self.oscWindowTop, 8);
+    self.osc.dials = list_init();
+    self.osc.switches = list_init();
+    list_append(self.osc.dials, (unitype) (void *) dialInit("X Scale", &self.windowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.osc.windowTop, 8, 1, 1000), 'p');
+    list_append(self.osc.dials, (unitype) (void *) dialInit("Y Scale", &self.topBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.osc.windowTop, 8, 50, 10000), 'p');
+    list_append(self.osc.switches, (unitype) (void *) switchInit("Pause", &self.stop, WINDOW_OSC, 1, -100 - self.osc.windowTop, 8), 'p');
     /* color */
     double themeCopy[42] = {
         /* light theme */
@@ -243,111 +256,117 @@ list_t *FFT(list_t *samples) {
     return freqBins;
 }
 
-void dialTick() {
-    for (int i = 0; i < sizeof(self.dials) / sizeof(dial_t); i++) {
-        textGLWriteString(self.dials[i].label, (self.oscWindowCoords[2] - self.oscWindowSide + self.oscWindowCoords[2]) / 2, self.oscWindowCoords[1] + (self.oscWindowCoords[3] - self.oscWindowCoords[1]) * self.dials[i].position[0] + self.dials[i].position[1] + 15, 7, 50);
-        turtlePenSize(self.dials[i].size * 2);
-        double dialX = (self.oscWindowCoords[2] - self.oscWindowSide + self.oscWindowCoords[2]) / 2;
-        double dialY = self.oscWindowCoords[1] + (self.oscWindowCoords[3] - self.oscWindowCoords[1]) * self.dials[i].position[0] + self.dials[i].position[1];
-        turtleGoto(dialX, dialY);
-        turtlePenDown();
-        turtlePenUp();
-        turtlePenSize(self.dials[i].size * 2 * 0.8);
-        turtlePenColor(self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5]);
-        turtlePenDown();
-        turtlePenUp();
-        turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
-        turtlePenSize(1);
-        turtlePenDown();
-        double dialAngle;
-        if (self.dials[i].type == DIAL_LOG) {
-            dialAngle = pow(360, (*(self.dials[i].variable) - self.dials[i].range[0]) / (self.dials[i].range[1] - self.dials[i].range[0]));
-        } else if (self.dials[i].type == DIAL_LINEAR) {
-            dialAngle = (*(self.dials[i].variable) - self.dials[i].range[0]) / (self.dials[i].range[1] - self.dials[i].range[0]) * 360;
-        } else if (self.dials[i].type == DIAL_EXP) {
-            dialAngle = 360 * (log(((*(self.dials[i].variable) - self.dials[i].range[0]) / (self.dials[i].range[1] - self.dials[i].range[0])) * 360 + 1) / log(361));
-        }
-        turtleGoto(dialX + sin(dialAngle / 57.2958) * self.dials[i].size, dialY + cos(dialAngle / 57.2958) * self.dials[i].size);
-        turtlePenUp();
-        if (self.mouseDown) {
-            if (self.dials[i].status[0] < 0) {
-                self.dialAnchorX = dialX;
-                self.dialAnchorY = dialY;
-                self.dials[i].status[0] *= -1;
-                self.dials[i].status[1] = self.mx - dialX;
+void dialTick(int window) {
+    for (int i = 0; i < self.osc.dials -> length; i++) {
+        dial_t *dialp = (dial_t *) (self.osc.dials -> data[i].p);
+        if ((dialp -> window & window) != 0) {
+            textGLWriteString(dialp -> label, (self.osc.windowCoords[2] - self.osc.windowSide + self.osc.windowCoords[2]) / 2, self.osc.windowCoords[1] + (self.osc.windowCoords[3] - self.osc.windowCoords[1]) * dialp -> position[0] + dialp -> position[1] + 15, 7, 50);
+            turtlePenSize(dialp -> size * 2);
+            double dialX = (self.osc.windowCoords[2] - self.osc.windowSide + self.osc.windowCoords[2]) / 2;
+            double dialY = self.osc.windowCoords[1] + (self.osc.windowCoords[3] - self.osc.windowCoords[1]) * dialp -> position[0] + dialp -> position[1];
+            turtleGoto(dialX, dialY);
+            turtlePenDown();
+            turtlePenUp();
+            turtlePenSize(dialp -> size * 2 * 0.8);
+            turtlePenColor(self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5]);
+            turtlePenDown();
+            turtlePenUp();
+            turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+            turtlePenSize(1);
+            turtlePenDown();
+            double dialAngle;
+            if (dialp -> type == DIAL_LOG) {
+                dialAngle = pow(360, (*(dialp -> variable) - dialp -> range[0]) / (dialp -> range[1] - dialp -> range[0]));
+            } else if (dialp -> type == DIAL_LINEAR) {
+                dialAngle = (*(dialp -> variable) - dialp -> range[0]) / (dialp -> range[1] - dialp -> range[0]) * 360;
+            } else if (dialp -> type == DIAL_EXP) {
+                dialAngle = 360 * (log(((*(dialp -> variable) - dialp -> range[0]) / (dialp -> range[1] - dialp -> range[0])) * 360 + 1) / log(361));
             }
-        } else {
-            if (self.mx > dialX - self.dials[i].size && self.mx < dialX + self.dials[i].size && self.my > dialY - self.dials[i].size && self.my < dialY + self.dials[i].size) {
-                self.dials[i].status[0] = -1;
+            turtleGoto(dialX + sin(dialAngle / 57.2958) * dialp -> size, dialY + cos(dialAngle / 57.2958) * dialp -> size);
+            turtlePenUp();
+            if (self.mouseDown) {
+                if (dialp -> status[0] < 0) {
+                    self.dialAnchorX = dialX;
+                    self.dialAnchorY = dialY;
+                    dialp -> status[0] *= -1;
+                    dialp -> status[1] = self.mx - dialX;
+                }
             } else {
-                self.dials[i].status[0] = 0;
+                if (self.mx > dialX - dialp -> size && self.mx < dialX + dialp -> size && self.my > dialY - dialp -> size && self.my < dialY + dialp -> size) {
+                    dialp -> status[0] = -1;
+                } else {
+                    dialp -> status[0] = 0;
+                }
             }
+            if (dialp -> status[0] > 0) {
+                dialAngle = angleBetween(self.dialAnchorX, self.dialAnchorY, self.mx, self.my);
+                if (self.my < self.dialAnchorY) {
+                    dialp -> status[1] = self.mx - dialX;
+                }
+                if ((dialAngle < 0.0001 || dialAngle > 180) && self.my > self.dialAnchorY && dialp -> status[1] >= 0) {
+                    dialAngle = 0.0001;
+                }
+                if ((dialAngle > 359.999 || dialAngle < 180) && self.my > self.dialAnchorY && dialp -> status[1] < 0) {
+                    dialAngle = 359.999;
+                }
+                if (dialp -> type == DIAL_LOG) {
+                    *(dialp -> variable) =dialp -> range[0] + (dialp -> range[1] - dialp -> range[0]) * (log(dialAngle) / log(360));
+                } else if (dialp -> type == DIAL_LINEAR) {
+                    *(dialp -> variable) = dialp -> range[0] + ((dialp -> range[1] - dialp -> range[0]) * dialAngle / 360);
+                } else if (dialp -> type == DIAL_EXP) {
+                    *(dialp -> variable) = dialp -> range[0] + (dialp -> range[1] - dialp -> range[0]) * ((pow(361, dialAngle / 360) - 1) / 360);
+                }
+            }
+            char bubble[24];
+            sprintf(bubble, "%.0lf", *(dialp -> variable));
+            textGLWriteString(bubble, dialX + dialp -> size + 3, dialY, 4, 0);
         }
-        if (self.dials[i].status[0] > 0) {
-            dialAngle = angleBetween(self.dialAnchorX, self.dialAnchorY, self.mx, self.my);
-            if (self.my < self.dialAnchorY) {
-                self.dials[i].status[1] = self.mx - dialX;
-            }
-            if ((dialAngle < 0.0001 || dialAngle > 180) && self.my > self.dialAnchorY && self.dials[i].status[1] >= 0) {
-                dialAngle = 0.0001;
-            }
-            if ((dialAngle > 359.999 || dialAngle < 180) && self.my > self.dialAnchorY && self.dials[i].status[1] < 0) {
-                dialAngle = 359.999;
-            }
-            if (self.dials[i].type == DIAL_LOG) {
-                *(self.dials[i].variable) = self.dials[i].range[0] + (self.dials[i].range[1] - self.dials[i].range[0]) * (log(dialAngle) / log(360));
-            } else if (self.dials[i].type == DIAL_LINEAR) {
-                *(self.dials[i].variable) = self.dials[i].range[0] + ((self.dials[i].range[1] - self.dials[i].range[0]) * dialAngle / 360);
-            } else if (self.dials[i].type == DIAL_EXP) {
-                *(self.dials[i].variable) = self.dials[i].range[0] + (self.dials[i].range[1] - self.dials[i].range[0]) * ((pow(361, dialAngle / 360) - 1) / 360);
-            }
-        }
-        char bubble[24];
-        sprintf(bubble, "%.0lf", *(self.dials[i].variable));
-        textGLWriteString(bubble, dialX + self.dials[i].size + 3, dialY, 4, 0);
     }
 }
 
-void switchTick() {
-    for (int i = 0; i < sizeof(self.switches) / sizeof(switch_t); i++) {
-        textGLWriteString(self.switches[i].label, (self.oscWindowCoords[2] - self.oscWindowSide + self.oscWindowCoords[2]) / 2, self.oscWindowCoords[1] + (self.oscWindowCoords[3] - self.oscWindowCoords[1]) * self.switches[i].position[0] + self.switches[i].position[1] + 15, 7, 50);
-        turtlePenColor(self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14]);
-        turtlePenSize(self.switches[i].size * 1.2);
-        double switchX = (self.oscWindowCoords[2] - self.oscWindowSide + self.oscWindowCoords[2]) / 2;
-        double switchY = self.oscWindowCoords[1] + (self.oscWindowCoords[3] - self.oscWindowCoords[1]) * self.switches[i].position[0] + self.switches[i].position[1];
-        turtleGoto(switchX - self.switches[i].size * 0.8, switchY);
-        turtlePenDown();
-        turtleGoto(switchX + self.switches[i].size * 0.8, switchY);
-        turtlePenUp();
-        turtlePenSize(self.switches[i].size);
-        turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
-        if (*(self.switches[i].variable)) {
-            // turtlePenColor(self.themeColors[self.theme + 15], self.themeColors[self.theme + 16], self.themeColors[self.theme + 17]);
-            turtleGoto(switchX + self.switches[i].size * 0.8, switchY);
-        } else {
-            // turtlePenColor(self.themeColors[self.theme + 18], self.themeColors[self.theme + 19], self.themeColors[self.theme + 20]);
-            turtleGoto(switchX - self.switches[i].size * 0.8, switchY);
-        }
-        turtlePenDown();
-        turtlePenUp();
-        if (self.mouseDown) {
-            if (self.switches[i].status < 0) {
-                self.switches[i].status *= -1;
-            }
-        } else {
-            if (self.mx > switchX - self.dials[i].size && self.mx < switchX + self.dials[i].size && self.my > switchY - self.dials[i].size && self.my < switchY + self.dials[i].size) {
-                self.switches[i].status = -1;
+void switchTick(int window) {
+    for (int i = 0; i < self.osc.switches -> length; i++) {
+        switch_t *switchp = (switch_t *) (self.osc.switches -> data[i].p);
+        if ((switchp -> window & window) != 0) {
+            textGLWriteString(switchp -> label, (self.osc.windowCoords[2] - self.osc.windowSide + self.osc.windowCoords[2]) / 2, self.osc.windowCoords[1] + (self.osc.windowCoords[3] - self.osc.windowCoords[1]) * switchp -> position[0] + switchp -> position[1] + 15, 7, 50);
+            turtlePenColor(self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14]);
+            turtlePenSize(switchp -> size * 1.2);
+            double switchX = (self.osc.windowCoords[2] - self.osc.windowSide + self.osc.windowCoords[2]) / 2;
+            double switchY = self.osc.windowCoords[1] + (self.osc.windowCoords[3] - self.osc.windowCoords[1]) * switchp -> position[0] + switchp -> position[1];
+            turtleGoto(switchX - switchp -> size * 0.8, switchY);
+            turtlePenDown();
+            turtleGoto(switchX + switchp -> size * 0.8, switchY);
+            turtlePenUp();
+            turtlePenSize(switchp -> size);
+            turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+            if (*(switchp -> variable)) {
+                // turtlePenColor(self.themeColors[self.theme + 15], self.themeColors[self.theme + 16], self.themeColors[self.theme + 17]);
+                turtleGoto(switchX + switchp -> size * 0.8, switchY);
             } else {
-                self.switches[i].status = 0;
+                // turtlePenColor(self.themeColors[self.theme + 18], self.themeColors[self.theme + 19], self.themeColors[self.theme + 20]);
+                turtleGoto(switchX - switchp -> size * 0.8, switchY);
             }
-        }
-        if (self.switches[i].status > 0) {
-            if (*(self.switches[i].variable)) {
-                *(self.switches[i].variable) = 0;
+            turtlePenDown();
+            turtlePenUp();
+            if (self.mouseDown) {
+                if (switchp -> status < 0) {
+                    switchp -> status *= -1;
+                }
             } else {
-                *(self.switches[i].variable) = 1;
+                if (self.mx > switchX - switchp -> size && self.mx < switchX + switchp -> size && self.my > switchY - switchp -> size && self.my < switchY + switchp -> size) {
+                    switchp -> status = -1;
+                } else {
+                    switchp -> status = 0;
+                }
             }
-            self.switches[i].status = 0;
+            if (switchp -> status > 0) {
+                if (*(switchp -> variable)) {
+                    *(switchp -> variable) = 0;
+                } else {
+                    *(switchp -> variable) = 1;
+                }
+                switchp -> status = 0;
+            }
         }
     }
 }
@@ -356,62 +375,62 @@ void renderOscWindow() {
     /* render window */
     turtlePenSize(2);
     turtlePenColor(self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5]);
-    turtleGoto(self.oscWindowCoords[0], self.oscWindowCoords[1]);
+    turtleGoto(self.osc.windowCoords[0], self.osc.windowCoords[1]);
     turtlePenDown();
-    turtleGoto(self.oscWindowCoords[0], self.oscWindowCoords[3]);
-    turtleGoto(self.oscWindowCoords[2], self.oscWindowCoords[3]);
-    turtleGoto(self.oscWindowCoords[2], self.oscWindowCoords[1]);
-    turtleGoto(self.oscWindowCoords[0], self.oscWindowCoords[1]);
+    turtleGoto(self.osc.windowCoords[0], self.osc.windowCoords[3]);
+    turtleGoto(self.osc.windowCoords[2], self.osc.windowCoords[3]);
+    turtleGoto(self.osc.windowCoords[2], self.osc.windowCoords[1]);
+    turtleGoto(self.osc.windowCoords[0], self.osc.windowCoords[1]);
     turtlePenUp();
-    turtleRentangle(self.oscWindowCoords[0], self.oscWindowCoords[3], self.oscWindowCoords[2], self.oscWindowCoords[3] - self.oscWindowTop, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
-    turtleRentangle(self.oscWindowCoords[2] - self.oscWindowSide, self.oscWindowCoords[1], self.oscWindowCoords[2], self.oscWindowCoords[3], self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 40);
+    turtleRentangle(self.osc.windowCoords[0], self.osc.windowCoords[3], self.osc.windowCoords[2], self.osc.windowCoords[3] - self.osc.windowTop, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
+    turtleRentangle(self.osc.windowCoords[2] - self.osc.windowSide, self.osc.windowCoords[1], self.osc.windowCoords[2], self.osc.windowCoords[3], self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 40);
     turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
     /* write title */
-    textGLWriteString("Oscilloscope", (self.oscWindowCoords[0] + self.oscWindowCoords[2] - self.oscWindowSide) / 2, self.oscWindowCoords[3] - self.oscWindowTop * 0.45, self.oscWindowTop * 0.5, 50);
+    textGLWriteString("Oscilloscope", (self.osc.windowCoords[0] + self.osc.windowCoords[2] - self.osc.windowSide) / 2, self.osc.windowCoords[3] - self.osc.windowTop * 0.45, self.osc.windowTop * 0.5, 50);
     /* draw sidebar UI elements */
-    dialTick();
-    switchTick();
+    dialTick(WINDOW_OSC);
+    switchTick(WINDOW_OSC);
     /* window move and resize logic */
     /* move */
     if (self.mouseDown) {
-        if (self.oscMove < 0) {
+        if (self.osc.move < 0) {
             self.anchorX = self.mx;
             self.anchorY = self.my;
-            memcpy(self.anchorPoints, self.oscWindowCoords, sizeof(double) * 4);
-            self.oscMove *= -1;
+            memcpy(self.anchorPoints, self.osc.windowCoords, sizeof(double) * 4);
+            self.osc.move *= -1;
         }
-        if (self.oscClick == 1) {
-            self.oscClick = 2;
+        if (self.osc.click == 1) {
+            self.osc.click = 2;
             list_remove(self.windowRender, (unitype) WINDOW_OSC, 'i');
             list_append(self.windowRender, (unitype) WINDOW_OSC, 'i');
         }
     } else {
-        if (self.mx > self.oscWindowCoords[0] && self.mx < self.oscWindowCoords[2] && self.my > self.oscWindowCoords[3] - self.oscWindowTop && self.my < self.oscWindowCoords[3]) {
-            self.oscMove = -1;
+        if (self.mx > self.osc.windowCoords[0] && self.mx < self.osc.windowCoords[2] && self.my > self.osc.windowCoords[3] - self.osc.windowTop && self.my < self.osc.windowCoords[3]) {
+            self.osc.move = -1;
         } else {
-            self.oscMove = 0;
+            self.osc.move = 0;
         }
-        if (self.mx > self.oscWindowCoords[0] && self.mx < self.oscWindowCoords[2] && self.my > self.oscWindowCoords[1] && self.my < self.oscWindowCoords[3] && self.freqClick == 0) {
-            self.oscClick = 1;
+        if (self.mx > self.osc.windowCoords[0] && self.mx < self.osc.windowCoords[2] && self.my > self.osc.windowCoords[1] && self.my < self.osc.windowCoords[3] && self.freqClick == 0) {
+            self.osc.click = 1;
         } else {
-            self.oscClick = 0;
+            self.osc.click = 0;
         }
     }
-    if (self.oscMove > 0) {
-        self.oscClick = 1;
-        self.oscWindowCoords[0] = self.anchorPoints[0] + self.mx - self.anchorX;
-        self.oscWindowCoords[1] = self.anchorPoints[1] + self.my - self.anchorY;
-        self.oscWindowCoords[2] = self.anchorPoints[2] + self.mx - self.anchorX;
-        self.oscWindowCoords[3] = self.anchorPoints[3] + self.my - self.anchorY;
+    if (self.osc.move > 0) {
+        self.osc.click = 1;
+        self.osc.windowCoords[0] = self.anchorPoints[0] + self.mx - self.anchorX;
+        self.osc.windowCoords[1] = self.anchorPoints[1] + self.my - self.anchorY;
+        self.osc.windowCoords[2] = self.anchorPoints[2] + self.mx - self.anchorX;
+        self.osc.windowCoords[3] = self.anchorPoints[3] + self.my - self.anchorY;
     }
     /* resize */
     double epsilon = 3;
     if (self.mouseDown) {
-        if (self.oscResize < 0) {
-            self.oscClick = 1;
-            self.oscResize *= -1;
-            self.oscMove = 0; // don't move and resize
-            switch (self.oscResize) {
+        if (self.osc.resize < 0) {
+            self.osc.click = 1;
+            self.osc.resize *= -1;
+            self.osc.move = 0; // don't move and resize
+            switch (self.osc.resize) {
                 case 1:
                     win32SetCursor(CURSOR_DIAGONALRIGHT);
                 break;
@@ -441,98 +460,98 @@ void renderOscWindow() {
             }
         }
     } else {
-        if (self.mx > self.oscWindowCoords[2] - epsilon && self.mx < self.oscWindowCoords[2] + epsilon && self.my > self.oscWindowCoords[1] - epsilon && self.my < self.oscWindowCoords[1] + epsilon) {
+        if (self.mx > self.osc.windowCoords[2] - epsilon && self.mx < self.osc.windowCoords[2] + epsilon && self.my > self.osc.windowCoords[1] - epsilon && self.my < self.osc.windowCoords[1] + epsilon) {
             win32SetCursor(CURSOR_DIAGONALLEFT);
-            self.oscResize = -3;
-        } else if (self.mx > self.oscWindowCoords[0] - epsilon && self.mx < self.oscWindowCoords[0] + epsilon && self.my > self.oscWindowCoords[3] - epsilon && self.my < self.oscWindowCoords[3] + epsilon) {
+            self.osc.resize = -3;
+        } else if (self.mx > self.osc.windowCoords[0] - epsilon && self.mx < self.osc.windowCoords[0] + epsilon && self.my > self.osc.windowCoords[3] - epsilon && self.my < self.osc.windowCoords[3] + epsilon) {
             win32SetCursor(CURSOR_DIAGONALLEFT);
-            self.oscResize = -7;
-        } else if (self.mx > self.oscWindowCoords[0] - epsilon && self.mx < self.oscWindowCoords[0] + epsilon && self.my > self.oscWindowCoords[1] - epsilon && self.my < self.oscWindowCoords[1] + epsilon) {
+            self.osc.resize = -7;
+        } else if (self.mx > self.osc.windowCoords[0] - epsilon && self.mx < self.osc.windowCoords[0] + epsilon && self.my > self.osc.windowCoords[1] - epsilon && self.my < self.osc.windowCoords[1] + epsilon) {
             win32SetCursor(CURSOR_DIAGONALRIGHT);
-            self.oscResize = -1;
-        } else if (self.mx > self.oscWindowCoords[2] - epsilon && self.mx < self.oscWindowCoords[2] + epsilon && self.my > self.oscWindowCoords[3] - epsilon && self.my < self.oscWindowCoords[3] + epsilon) {
+            self.osc.resize = -1;
+        } else if (self.mx > self.osc.windowCoords[2] - epsilon && self.mx < self.osc.windowCoords[2] + epsilon && self.my > self.osc.windowCoords[3] - epsilon && self.my < self.osc.windowCoords[3] + epsilon) {
             win32SetCursor(CURSOR_DIAGONALRIGHT);
-            self.oscResize = -5;
-        } else if (self.mx > self.oscWindowCoords[0] && self.mx < self.oscWindowCoords[2] && self.my > self.oscWindowCoords[1] - epsilon && self.my < self.oscWindowCoords[1] + epsilon) {
+            self.osc.resize = -5;
+        } else if (self.mx > self.osc.windowCoords[0] && self.mx < self.osc.windowCoords[2] && self.my > self.osc.windowCoords[1] - epsilon && self.my < self.osc.windowCoords[1] + epsilon) {
             win32SetCursor(CURSOR_UPDOWN);
-            self.oscResize = -2;
-        } else if (self.mx > self.oscWindowCoords[2] - epsilon && self.mx < self.oscWindowCoords[2] + epsilon && self.my > self.oscWindowCoords[1] && self.my < self.oscWindowCoords[3]) {
+            self.osc.resize = -2;
+        } else if (self.mx > self.osc.windowCoords[2] - epsilon && self.mx < self.osc.windowCoords[2] + epsilon && self.my > self.osc.windowCoords[1] && self.my < self.osc.windowCoords[3]) {
             win32SetCursor(CURSOR_SIDESIDE);
-            self.oscResize = -4;
-        } else if (self.mx > self.oscWindowCoords[0] && self.mx < self.oscWindowCoords[2] && self.my > self.oscWindowCoords[3] - epsilon && self.my < self.oscWindowCoords[3] + epsilon) {
+            self.osc.resize = -4;
+        } else if (self.mx > self.osc.windowCoords[0] && self.mx < self.osc.windowCoords[2] && self.my > self.osc.windowCoords[3] - epsilon && self.my < self.osc.windowCoords[3] + epsilon) {
             win32SetCursor(CURSOR_UPDOWN);
-            self.oscResize = -6;
-        } else if (self.mx > self.oscWindowCoords[0] - epsilon && self.mx < self.oscWindowCoords[0] + epsilon && self.my > self.oscWindowCoords[1] && self.my < self.oscWindowCoords[3]) {
+            self.osc.resize = -6;
+        } else if (self.mx > self.osc.windowCoords[0] - epsilon && self.mx < self.osc.windowCoords[0] + epsilon && self.my > self.osc.windowCoords[1] && self.my < self.osc.windowCoords[3]) {
             win32SetCursor(CURSOR_SIDESIDE);
-            self.oscResize = -8;
+            self.osc.resize = -8;
         } else {
-            self.oscResize = 0;
+            self.osc.resize = 0;
         }
     }
-    if (self.oscResize > 0) {
-        switch (self.oscResize) {
+    if (self.osc.resize > 0) {
+        switch (self.osc.resize) {
             case 1:
-            self.oscWindowCoords[0] = self.mx;
-            self.oscWindowCoords[1] = self.my;
-            if (self.oscWindowCoords[0] > self.oscWindowCoords[2] - self.oscWindowMinX) {
-                self.oscWindowCoords[0] = self.oscWindowCoords[2] - self.oscWindowMinX;
+            self.osc.windowCoords[0] = self.mx;
+            self.osc.windowCoords[1] = self.my;
+            if (self.osc.windowCoords[0] > self.osc.windowCoords[2] - self.osc.windowMinX) {
+                self.osc.windowCoords[0] = self.osc.windowCoords[2] - self.osc.windowMinX;
             }
-            if (self.oscWindowCoords[1] > self.oscWindowCoords[3] - self.oscWindowMinY) {
-                self.oscWindowCoords[1] = self.oscWindowCoords[3] - self.oscWindowMinY;
+            if (self.osc.windowCoords[1] > self.osc.windowCoords[3] - self.osc.windowMinY) {
+                self.osc.windowCoords[1] = self.osc.windowCoords[3] - self.osc.windowMinY;
             }
             break;
             case 2:
-            self.oscWindowCoords[1] = self.my;
-            if (self.oscWindowCoords[1] > self.oscWindowCoords[3] - self.oscWindowMinY) {
-                self.oscWindowCoords[1] = self.oscWindowCoords[3] - self.oscWindowMinY;
+            self.osc.windowCoords[1] = self.my;
+            if (self.osc.windowCoords[1] > self.osc.windowCoords[3] - self.osc.windowMinY) {
+                self.osc.windowCoords[1] = self.osc.windowCoords[3] - self.osc.windowMinY;
             }
             break;
             case 3:
-            self.oscWindowCoords[2] = self.mx;
-            self.oscWindowCoords[1] = self.my;
-            if (self.oscWindowCoords[2] < self.oscWindowCoords[0] + self.oscWindowMinX) {
-                self.oscWindowCoords[2] = self.oscWindowCoords[0] + self.oscWindowMinX;
+            self.osc.windowCoords[2] = self.mx;
+            self.osc.windowCoords[1] = self.my;
+            if (self.osc.windowCoords[2] < self.osc.windowCoords[0] + self.osc.windowMinX) {
+                self.osc.windowCoords[2] = self.osc.windowCoords[0] + self.osc.windowMinX;
             }
-            if (self.oscWindowCoords[1] > self.oscWindowCoords[3] - self.oscWindowMinY) {
-                self.oscWindowCoords[1] = self.oscWindowCoords[3] - self.oscWindowMinY;
+            if (self.osc.windowCoords[1] > self.osc.windowCoords[3] - self.osc.windowMinY) {
+                self.osc.windowCoords[1] = self.osc.windowCoords[3] - self.osc.windowMinY;
             }
             break;
             case 4:
-            self.oscWindowCoords[2] = self.mx;
-            if (self.oscWindowCoords[2] < self.oscWindowCoords[0] + self.oscWindowMinX) {
-                self.oscWindowCoords[2] = self.oscWindowCoords[0] + self.oscWindowMinX;
+            self.osc.windowCoords[2] = self.mx;
+            if (self.osc.windowCoords[2] < self.osc.windowCoords[0] + self.osc.windowMinX) {
+                self.osc.windowCoords[2] = self.osc.windowCoords[0] + self.osc.windowMinX;
             }
             break;
             case 5:
-            self.oscWindowCoords[2] = self.mx;
-            self.oscWindowCoords[3] = self.my;
-            if (self.oscWindowCoords[2] < self.oscWindowCoords[0] + self.oscWindowMinX) {
-                self.oscWindowCoords[2] = self.oscWindowCoords[0] + self.oscWindowMinX;
+            self.osc.windowCoords[2] = self.mx;
+            self.osc.windowCoords[3] = self.my;
+            if (self.osc.windowCoords[2] < self.osc.windowCoords[0] + self.osc.windowMinX) {
+                self.osc.windowCoords[2] = self.osc.windowCoords[0] + self.osc.windowMinX;
             }
-            if (self.oscWindowCoords[3] < self.oscWindowCoords[1] + self.oscWindowMinY) {
-                self.oscWindowCoords[3] = self.oscWindowCoords[1] + self.oscWindowMinY;
+            if (self.osc.windowCoords[3] < self.osc.windowCoords[1] + self.osc.windowMinY) {
+                self.osc.windowCoords[3] = self.osc.windowCoords[1] + self.osc.windowMinY;
             }
             break;
             case 6:
-            self.oscWindowCoords[3] = self.my;
-            if (self.oscWindowCoords[3] < self.oscWindowCoords[1] + self.oscWindowMinY) {
-                self.oscWindowCoords[3] = self.oscWindowCoords[1] + self.oscWindowMinY;
+            self.osc.windowCoords[3] = self.my;
+            if (self.osc.windowCoords[3] < self.osc.windowCoords[1] + self.osc.windowMinY) {
+                self.osc.windowCoords[3] = self.osc.windowCoords[1] + self.osc.windowMinY;
             }
             break;
             case 7:
-            self.oscWindowCoords[0] = self.mx;
-            self.oscWindowCoords[3] = self.my;
-            if (self.oscWindowCoords[0] > self.oscWindowCoords[2] - self.oscWindowMinX) {
-                self.oscWindowCoords[0] = self.oscWindowCoords[2] - self.oscWindowMinX;
+            self.osc.windowCoords[0] = self.mx;
+            self.osc.windowCoords[3] = self.my;
+            if (self.osc.windowCoords[0] > self.osc.windowCoords[2] - self.osc.windowMinX) {
+                self.osc.windowCoords[0] = self.osc.windowCoords[2] - self.osc.windowMinX;
             }
-            if (self.oscWindowCoords[3] < self.oscWindowCoords[1] + self.oscWindowMinY) {
-                self.oscWindowCoords[3] = self.oscWindowCoords[1] + self.oscWindowMinY;
+            if (self.osc.windowCoords[3] < self.osc.windowCoords[1] + self.osc.windowMinY) {
+                self.osc.windowCoords[3] = self.osc.windowCoords[1] + self.osc.windowMinY;
             }
             break;
             case 8:
-            self.oscWindowCoords[0] = self.mx;
-            if (self.oscWindowCoords[0] > self.oscWindowCoords[2] - self.oscWindowMinX) {
-                self.oscWindowCoords[0] = self.oscWindowCoords[2] - self.oscWindowMinX;
+            self.osc.windowCoords[0] = self.mx;
+            if (self.osc.windowCoords[0] > self.osc.windowCoords[2] - self.osc.windowMinX) {
+                self.osc.windowCoords[0] = self.osc.windowCoords[2] - self.osc.windowMinX;
             }
             break;
             default:
@@ -557,6 +576,9 @@ void renderFreqWindow() {
     turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
     /* write title */
     textGLWriteString("Frequency", (self.freqWindowCoords[0] + self.freqWindowCoords[2] - self.freqWindowSide) / 2, self.freqWindowCoords[3] - self.freqWindowTop * 0.45, self.freqWindowTop * 0.5, 50);
+    /* draw sidebar UI elements */
+    dialTick(WINDOW_FREQ);
+    switchTick(WINDOW_FREQ);
     /* window move and resize logic */
     /* move */
     if (self.mouseDown) {
@@ -577,7 +599,7 @@ void renderFreqWindow() {
         } else {
             self.freqMove = 0;
         }
-        if (self.mx > self.freqWindowCoords[0] && self.mx < self.freqWindowCoords[2] && self.my > self.freqWindowCoords[1] && self.my < self.freqWindowCoords[3] && self.oscClick == 0) {
+        if (self.mx > self.freqWindowCoords[0] && self.mx < self.freqWindowCoords[2] && self.my > self.freqWindowCoords[1] && self.my < self.freqWindowCoords[3] && self.osc.click == 0) {
             self.freqClick = 1;
         } else {
             self.freqClick = 0;
@@ -730,7 +752,7 @@ void renderFreqWindow() {
 void renderOscData() {
     self.bottomBound = self.topBound * -1;
     /* render window background */
-    turtleRentangle(self.oscWindowCoords[0], self.oscWindowCoords[1], self.oscWindowCoords[2], self.oscWindowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+    turtleRentangle(self.osc.windowCoords[0], self.osc.windowCoords[1], self.osc.windowCoords[2], self.osc.windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
     /* render data */
     if (!self.stop) { 
         self.rightBound = self.data -> length;
@@ -747,9 +769,9 @@ void renderOscData() {
     }
     turtlePenSize(1);
     turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
-    double xquantum = (self.oscWindowCoords[2] - self.oscWindowCoords[0]) / (self.rightBound - self.leftBound - 1);
+    double xquantum = (self.osc.windowCoords[2] - self.osc.windowCoords[0]) / (self.rightBound - self.leftBound - 1);
     for (int i = 0; i < self.rightBound - self.leftBound; i++) {
-        turtleGoto(self.oscWindowCoords[0] + i * xquantum, self.oscWindowCoords[1] + ((self.data -> data[self.leftBound + i].d - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.oscWindowCoords[3] - self.oscWindowTop - self.oscWindowCoords[1]));
+        turtleGoto(self.osc.windowCoords[0] + i * xquantum, self.osc.windowCoords[1] + ((self.data -> data[self.leftBound + i].d - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.osc.windowCoords[3] - self.osc.windowTop - self.osc.windowCoords[1]));
         turtlePenDown();
     }
     turtlePenUp();
