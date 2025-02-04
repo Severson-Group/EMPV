@@ -625,18 +625,18 @@ void renderFreqData() {
         list_append(self.freqData, (unitype) dataPoint, 'd');
     }
     // list_print(self.freqData);
-    list_t *tempData = FFT(self.freqData);
+    // list_t *tempData = FFT(self.freqData);
     // list_print(tempData);
-    turtlePenSize(1);
-    turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
-    double xquantum = (self.windows[1].windowCoords[2] - self.windows[1].windowCoords[0]) / ((tempData -> length) / 2 - 1);
-    for (int i = 0; i < (tempData -> length) / 2; i++) {
-        double magnitude = tempData -> data[i * 2].d * tempData -> data[i * 2].d + tempData -> data[i * 2 + 1].d * tempData -> data[i * 2 + 1].d;
-        turtleGoto(self.windows[1].windowCoords[0] + i * xquantum, self.windows[1].windowCoords[1] + ((magnitude - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]));
-        turtlePenDown();
-    }
-    turtlePenUp();
-    list_free(tempData);
+    // turtlePenSize(1);
+    // turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
+    // double xquantum = (self.windows[1].windowCoords[2] - self.windows[1].windowCoords[0]) / ((tempData -> length) / 2 - 1);
+    // for (int i = 0; i < (tempData -> length) / 2; i++) {
+    //     double magnitude = tempData -> data[i * 2].d * tempData -> data[i * 2].d + tempData -> data[i * 2 + 1].d * tempData -> data[i * 2 + 1].d;
+    //     turtleGoto(self.windows[1].windowCoords[0] + i * xquantum, self.windows[1].windowCoords[1] + ((magnitude - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]));
+    //     turtlePenDown();
+    // }
+    // turtlePenUp();
+    // list_free(tempData);
 }
 
 void renderOrder() {
