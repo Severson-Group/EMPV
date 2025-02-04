@@ -381,7 +381,7 @@ void renderOscWindow() {
             self.oscMove *= -1;
         }
         if (self.oscClick == 1) {
-            self.oscClick = 0;
+            self.oscClick = 2;
             list_remove(self.windowRender, (unitype) WINDOW_OSC, 'i');
             list_append(self.windowRender, (unitype) WINDOW_OSC, 'i');
         }
@@ -391,13 +391,14 @@ void renderOscWindow() {
         } else {
             self.oscMove = 0;
         }
-        if (self.mx > self.oscWindowCoords[0] && self.mx < self.oscWindowCoords[2] && self.my > self.oscWindowCoords[1] && self.my < self.oscWindowCoords[3]) {
+        if (self.mx > self.oscWindowCoords[0] && self.mx < self.oscWindowCoords[2] && self.my > self.oscWindowCoords[1] && self.my < self.oscWindowCoords[3] && self.freqClick == 0) {
             self.oscClick = 1;
         } else {
             self.oscClick = 0;
         }
     }
     if (self.oscMove > 0) {
+        self.oscClick = 1;
         self.oscWindowCoords[0] = self.anchorPoints[0] + self.mx - self.anchorX;
         self.oscWindowCoords[1] = self.anchorPoints[1] + self.my - self.anchorY;
         self.oscWindowCoords[2] = self.anchorPoints[2] + self.mx - self.anchorX;
@@ -407,6 +408,7 @@ void renderOscWindow() {
     double epsilon = 3;
     if (self.mouseDown) {
         if (self.oscResize < 0) {
+            self.oscClick = 1;
             self.oscResize *= -1;
             self.oscMove = 0; // don't move and resize
             switch (self.oscResize) {
@@ -555,9 +557,6 @@ void renderFreqWindow() {
     turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
     /* write title */
     textGLWriteString("Frequency", (self.freqWindowCoords[0] + self.freqWindowCoords[2] - self.freqWindowSide) / 2, self.freqWindowCoords[3] - self.freqWindowTop * 0.45, self.freqWindowTop * 0.5, 50);
-    /* draw sidebar UI elements */
-    dialTick();
-    switchTick();
     /* window move and resize logic */
     /* move */
     if (self.mouseDown) {
@@ -568,7 +567,7 @@ void renderFreqWindow() {
             self.freqMove *= -1;
         }
         if (self.freqClick == 1) {
-            self.freqClick = 0;
+            self.freqClick = 2;
             list_remove(self.windowRender, (unitype) WINDOW_FREQ, 'i');
             list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
         }
@@ -578,13 +577,14 @@ void renderFreqWindow() {
         } else {
             self.freqMove = 0;
         }
-        if (self.mx > self.freqWindowCoords[0] && self.mx < self.freqWindowCoords[2] && self.my > self.freqWindowCoords[1] && self.my < self.freqWindowCoords[3]) {
+        if (self.mx > self.freqWindowCoords[0] && self.mx < self.freqWindowCoords[2] && self.my > self.freqWindowCoords[1] && self.my < self.freqWindowCoords[3] && self.oscClick == 0) {
             self.freqClick = 1;
         } else {
             self.freqClick = 0;
         }
     }
     if (self.freqMove > 0) {
+        self.freqClick = 1;
         self.freqWindowCoords[0] = self.anchorPoints[0] + self.mx - self.anchorX;
         self.freqWindowCoords[1] = self.anchorPoints[1] + self.my - self.anchorY;
         self.freqWindowCoords[2] = self.anchorPoints[2] + self.mx - self.anchorX;
@@ -594,6 +594,7 @@ void renderFreqWindow() {
     double epsilon = 3;
     if (self.mouseDown) {
         if (self.freqResize < 0) {
+            self.freqClick = 1;
             self.freqResize *= -1;
             self.freqMove = 0; // don't move and resize
             switch (self.freqResize) {
@@ -946,7 +947,7 @@ int main(int argc, char *argv[]) {
     win32FileDialogAddExtension("txt"); // add txt to extension restrictions
     win32FileDialogAddExtension("csv"); // add csv to extension restrictions
 
-    int tps = 60; // ticks per second (locked to fps in this case)
+    int tps = 120; // ticks per second (locked to fps in this case)
     uint64_t tick = 0;
 
     clock_t start;
