@@ -457,7 +457,7 @@ void turtleQuad(double x1, double y1, double x2, double y2, double x3, double y3
     list_append(turtle.penPos, (unitype) y4, 'd');
 }
 // adds a (blit) rectangle to the pipeline (uses quad interface)
-void turtleRentangle(double x1, double y1, double x2, double y2, double r, double g, double b, double a) {
+void turtleRectangle(double x1, double y1, double x2, double y2, double r, double g, double b, double a) {
     list_append(turtle.penPos, (unitype) x1, 'd');
     list_append(turtle.penPos, (unitype) y1, 'd');
     list_append(turtle.penPos, (unitype) x2, 'd');

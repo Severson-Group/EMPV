@@ -12,14 +12,15 @@ Ethernet documentation: https://learn.microsoft.com/en-us/windows/win32/winsock/
 #include "include/win32Tools.h"
 #include <time.h>
 
-#define DIAL_LINEAR    0
-#define DIAL_LOG       1
-#define DIAL_EXP       2
+#define DIAL_LINEAR     0
+#define DIAL_LOG        1
+#define DIAL_EXP        2
 
-#define NUM_WINDOWS    2
+#define NUM_WINDOWS     3
 
-#define WINDOW_OSC     1
-#define WINDOW_FREQ    2
+#define WINDOW_OSC      1
+#define WINDOW_FREQ     2
+#define WINDOW_EDITOR  4
 
 typedef struct { // dial
     char label[24];
@@ -48,7 +49,7 @@ typedef struct { // general window attributes
     double windowSide;
     double windowMinX;
     double windowMinY;
-    int minimized;
+    int minimize;
     int move;
     int click;
     int resize;
@@ -87,6 +88,8 @@ typedef struct { // all the empv shared state is here
     /* frequency view */
         list_t *freqData;
         double topFreq; // top bound (y value)
+    /* editor view */
+
 
 } empv_t;
 
@@ -118,43 +121,7 @@ switch_t *switchInit(char *label, int *variable, int window, double yScale, doub
 }
 
 void init() { // initialises the empv variabes (shared state)
-    /* data */
-    self.data = list_init();
-    self.logVariables = list_init();
-    self.windowRender = list_init();
-    list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
-    list_append(self.windowRender, (unitype) WINDOW_OSC, 'i');
-    self.anchorX = 0;
-    self.anchorY = 0;
-    self.dialAnchorX = 0;
-    self.dialAnchorY = 0;
-    /* osc */
-    self.leftBound = 0;
-    self.rightBound = 0;
-    self.bottomBound = -100;
-    self.topBound = 100;
-    self.windowSize = 200;
-    strcpy(self.windows[0].title, "Oscilloscope");
-    self.windows[0].windowCoords[0] = -317;
-    self.windows[0].windowCoords[1] = 25;
-    self.windows[0].windowCoords[2] = -2;
-    self.windows[0].windowCoords[3] = 167;
-    self.windows[0].windowTop = 15;
-    self.windows[0].windowSide = 50;
-    self.windows[0].windowMinX = 60 + self.windows[0].windowSide;
-    self.windows[0].windowMinY = 120 + self.windows[0].windowTop;
-    self.windows[0].minimized = 0;
-    self.windows[0].move = 0;
-    self.windows[0].click = 0;
-    self.windows[0].resize = 0;
-    self.stop = 0;
-    /* ui */
-    self.windows[0].dials = list_init();
-    self.windows[0].switches = list_init();
-    list_append(self.windows[0].dials, (unitype) (void *) dialInit("X Scale", &self.windowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[0].windowTop, 8, 1, 1000), 'p');
-    list_append(self.windows[0].dials, (unitype) (void *) dialInit("Y Scale", &self.topBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[0].windowTop, 8, 20, 10000), 'p');
-    list_append(self.windows[0].switches, (unitype) (void *) switchInit("Pause", &self.stop, WINDOW_OSC, 1, -100 - self.windows[0].windowTop, 8), 'p');
-    /* color */
+/* color */
     double themeCopy[42] = {
         /* light theme */
         255, 255, 255, // background color
@@ -183,6 +150,42 @@ void init() { // initialises the empv variabes (shared state)
         ribbonDarkTheme();
         popupDarkTheme();
     }
+    /* data */
+    self.data = list_init();
+    self.logVariables = list_init();
+    self.windowRender = list_init();
+    list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
+    list_append(self.windowRender, (unitype) WINDOW_OSC, 'i');
+    list_append(self.windowRender, (unitype) WINDOW_EDITOR, 'i');
+    self.anchorX = 0;
+    self.anchorY = 0;
+    self.dialAnchorX = 0;
+    self.dialAnchorY = 0;
+    /* osc */
+    self.leftBound = 0;
+    self.rightBound = 0;
+    self.bottomBound = -100;
+    self.topBound = 100;
+    self.windowSize = 200;
+    strcpy(self.windows[0].title, "Oscilloscope");
+    self.windows[0].windowCoords[0] = -317;
+    self.windows[0].windowCoords[1] = 25;
+    self.windows[0].windowCoords[2] = -2;
+    self.windows[0].windowCoords[3] = 167;
+    self.windows[0].windowTop = 15;
+    self.windows[0].windowSide = 50;
+    self.windows[0].windowMinX = 60 + self.windows[0].windowSide;
+    self.windows[0].windowMinY = 120 + self.windows[0].windowTop;
+    self.windows[0].minimize = 0;
+    self.windows[0].move = 0;
+    self.windows[0].click = 0;
+    self.windows[0].resize = 0;
+    self.stop = 0;
+    self.windows[0].dials = list_init();
+    self.windows[0].switches = list_init();
+    list_append(self.windows[0].dials, (unitype) (void *) dialInit("X Scale", &self.windowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[0].windowTop, 8, 1, 1000), 'p');
+    list_append(self.windows[0].dials, (unitype) (void *) dialInit("Y Scale", &self.topBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[0].windowTop, 8, 20, 10000), 'p');
+    list_append(self.windows[0].switches, (unitype) (void *) switchInit("Pause", &self.stop, WINDOW_OSC, 1, -100 - self.windows[0].windowTop, 8), 'p');
 
     /* frequency */
     self.freqData = list_init();
@@ -196,12 +199,29 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[1].windowSide = 50;
     self.windows[1].windowMinX = 52 + self.windows[1].windowSide;
     self.windows[1].windowMinY = 120 + self.windows[1].windowTop;
+    self.windows[1].minimize = 0;
     self.windows[1].move = 0;
     self.windows[1].click = 0;
     self.windows[1].resize = 0;
     self.windows[1].dials = list_init();
     self.windows[1].switches = list_init();
     list_append(self.windows[1].dials, (unitype) (void *) dialInit("Y Scale", &self.topFreq, WINDOW_FREQ, DIAL_EXP, 1, -25 - self.windows[1].windowTop, 8, 50, 10000), 'p');
+    /* editor */
+    strcpy(self.windows[2].title, "Editor");
+    self.windows[2].windowCoords[0] = -317;
+    self.windows[2].windowCoords[1] = -121;
+    self.windows[2].windowCoords[2] = -2;
+    self.windows[2].windowCoords[3] = 21;
+    self.windows[2].windowTop = 15;
+    self.windows[2].windowSide = 50;
+    self.windows[2].windowMinX = 60 + self.windows[2].windowSide;
+    self.windows[2].windowMinY = 120 + self.windows[2].windowTop;
+    self.windows[2].minimize = 0;
+    self.windows[2].move = 0;
+    self.windows[2].click = 0;
+    self.windows[2].resize = 0;
+    self.windows[2].dials = list_init();
+    self.windows[2].switches = list_init();
 }
 
 int ilog2(int input) {
@@ -391,24 +411,26 @@ void switchTick(int window) {
 
 void renderWindow(int window) {
     window_t *win = &self.windows[window];
-    /* render window */
-    turtlePenSize(2);
-    turtlePenColor(self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5]);
-    turtleGoto(win -> windowCoords[0], win -> windowCoords[1]);
-    turtlePenDown();
-    turtleGoto(win -> windowCoords[0], win -> windowCoords[3]);
-    turtleGoto(win -> windowCoords[2], win -> windowCoords[3]);
-    turtleGoto(win -> windowCoords[2], win -> windowCoords[1]);
-    turtleGoto(win -> windowCoords[0], win -> windowCoords[1]);
-    turtlePenUp();
-    turtleRentangle(win -> windowCoords[0], win -> windowCoords[3], win -> windowCoords[2], win -> windowCoords[3] - win -> windowTop, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
-    turtleRentangle(win -> windowCoords[2] - win -> windowSide, win -> windowCoords[1], win -> windowCoords[2], win -> windowCoords[3], self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 40);
-    turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
-    /* write title */
-    textGLWriteString(win -> title, (win -> windowCoords[0] + win -> windowCoords[2] - win -> windowSide) / 2, win -> windowCoords[3] - win -> windowTop * 0.45, win -> windowTop * 0.5, 50);
-    /* draw sidebar UI elements */
-    dialTick(window);
-    switchTick(window);
+    if (win -> minimize == 0) {
+        /* render window */
+        turtlePenSize(2);
+        turtlePenColor(self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5]);
+        turtleGoto(win -> windowCoords[0], win -> windowCoords[1]);
+        turtlePenDown();
+        turtleGoto(win -> windowCoords[0], win -> windowCoords[3]);
+        turtleGoto(win -> windowCoords[2], win -> windowCoords[3]);
+        turtleGoto(win -> windowCoords[2], win -> windowCoords[1]);
+        turtleGoto(win -> windowCoords[0], win -> windowCoords[1]);
+        turtlePenUp();
+        turtleRectangle(win -> windowCoords[0], win -> windowCoords[3], win -> windowCoords[2], win -> windowCoords[3] - win -> windowTop, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
+        turtleRectangle(win -> windowCoords[2] - win -> windowSide, win -> windowCoords[1], win -> windowCoords[2], win -> windowCoords[3], self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 40);
+        turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+        /* write title */
+        textGLWriteString(win -> title, (win -> windowCoords[0] + win -> windowCoords[2] - win -> windowSide) / 2, win -> windowCoords[3] - win -> windowTop * 0.45, win -> windowTop * 0.5, 50);
+        /* draw sidebar UI elements */
+        dialTick(window);
+        switchTick(window);
+    }
     /* window move and resize logic */
     /* move */
     if (self.mouseDown) {
@@ -418,193 +440,212 @@ void renderWindow(int window) {
             memcpy(self.anchorPoints, win -> windowCoords, sizeof(double) * 4);
             win -> move *= -1;
         }
-        if (win -> click == 1) {
-            win -> click = 2;
-            list_remove(self.windowRender, (unitype) pow2(window), 'i');
-            list_append(self.windowRender, (unitype) pow2(window), 'i');
+        if (win -> click > 0 && win -> click < 100) {
+            if (win -> click == 1) {
+                list_remove(self.windowRender, (unitype) pow2(window), 'i');
+                list_append(self.windowRender, (unitype) pow2(window), 'i');
+            } else if (win -> click == 2) {
+                if (win -> minimize == 1) {
+                    list_remove(self.windowRender, (unitype) pow2(window), 'i');
+                    list_append(self.windowRender, (unitype) pow2(window), 'i');
+                    win -> minimize = 0;
+                } else {
+                    if (self.windowRender -> data[self.windowRender -> length - 1].i == pow2(window)) {
+                        win -> minimize = 1;
+                    } else {
+                        list_remove(self.windowRender, (unitype) pow2(window), 'i');
+                        list_append(self.windowRender, (unitype) pow2(window), 'i');
+                    }
+                }
+            }
+            win -> click = 100;
         }
     } else {
-        int moveSum = 0;
-        for (int i = 0; i < NUM_WINDOWS; i++) {
-            if (i != window) {
-                moveSum += self.windows[i].move;
+        if (win -> minimize == 0) {
+            int moveSum = 0;
+            for (int i = 0; i < NUM_WINDOWS; i++) {
+                if (i != window) {
+                    moveSum += self.windows[i].move;
+                }
             }
-        }
-        if (self.mx > win -> windowCoords[0] && self.mx < win -> windowCoords[2] && self.my > win -> windowCoords[3] - win -> windowTop && self.my < win -> windowCoords[3] && moveSum == 0) {
-            win -> move = -1;
-        } else {
-            win -> move = 0;
-        }
-        int clickSum = 0;
-        for (int i = 0; i < NUM_WINDOWS; i++) {
-            if (i != window) {
-                clickSum += self.windows[i].click;
+            if (self.mx > win -> windowCoords[0] && self.mx < win -> windowCoords[2] && self.my > win -> windowCoords[3] - win -> windowTop && self.my < win -> windowCoords[3] && moveSum == 0) {
+                win -> move = -1;
+            } else {
+                win -> move = 0;
             }
-        }
-        if (self.mx > win -> windowCoords[0] && self.mx < win -> windowCoords[2] && self.my > win -> windowCoords[1] && self.my < win -> windowCoords[3] && clickSum == 0) {
-            win -> click = 1;
+            int clickSum = 0;
+            for (int i = 0; i < NUM_WINDOWS; i++) {
+                if (i != window) {
+                    clickSum += self.windows[i].click;
+                }
+            }
+            if (self.mx > win -> windowCoords[0] && self.mx < win -> windowCoords[2] && self.my > win -> windowCoords[1] && self.my < win -> windowCoords[3] && clickSum == 0) {
+                win -> click = 1;
+            } else {
+                win -> click = 0;
+            }
         } else {
             win -> click = 0;
         }
     }
-    if (win -> move > 0) {
-        win -> click = 1;
-        win -> windowCoords[0] = self.anchorPoints[0] + self.mx - self.anchorX;
-        win -> windowCoords[1] = self.anchorPoints[1] + self.my - self.anchorY;
-        win -> windowCoords[2] = self.anchorPoints[2] + self.mx - self.anchorX;
-        win -> windowCoords[3] = self.anchorPoints[3] + self.my - self.anchorY;
-    }
-    /* resize */
-    double epsilon = 3;
-    if (self.mouseDown) {
-        if (win -> resize < 0) {
+    if (win -> minimize == 0) {
+        if (win -> move > 0) {
             win -> click = 1;
-            win -> resize *= -1;
-            for (int i = 0; i < NUM_WINDOWS; i++) { // don't move and resize
-                self.windows[i].move = 0;
+            win -> windowCoords[0] = self.anchorPoints[0] + self.mx - self.anchorX;
+            win -> windowCoords[1] = self.anchorPoints[1] + self.my - self.anchorY;
+            win -> windowCoords[2] = self.anchorPoints[2] + self.mx - self.anchorX;
+            win -> windowCoords[3] = self.anchorPoints[3] + self.my - self.anchorY;
+        }
+        /* resize */
+        double epsilon = 3;
+        if (self.mouseDown) {
+            if (win -> resize < 0) {
+                win -> click = 1;
+                win -> resize *= -1;
+                for (int i = 0; i < NUM_WINDOWS; i++) { // don't move and resize
+                    self.windows[i].move = 0;
+                }
+                switch (win -> resize) {
+                    case 1:
+                        win32SetCursor(CURSOR_DIAGONALRIGHT);
+                    break;
+                    case 2:
+                        win32SetCursor(CURSOR_UPDOWN);
+                    break;
+                    case 3:
+                        win32SetCursor(CURSOR_DIAGONALLEFT);
+                    break;
+                    case 4:
+                        win32SetCursor(CURSOR_SIDESIDE);
+                    break;
+                    case 5:
+                        win32SetCursor(CURSOR_DIAGONALRIGHT);
+                    break;
+                    case 6:
+                        win32SetCursor(CURSOR_UPDOWN);
+                    break;
+                    case 7:
+                        win32SetCursor(CURSOR_DIAGONALLEFT);
+                    break;
+                    case 8:
+                        win32SetCursor(CURSOR_SIDESIDE);
+                    break;
+                    default:
+                    break;
+                }
             }
+        } else {
+            int resizeSum = 0;
+            for (int i = 0; i < NUM_WINDOWS; i++) {
+                if (i != window) {
+                    resizeSum += self.windows[i].resize;
+                }
+            }
+            if (resizeSum == 0) {
+                if (self.mx > win -> windowCoords[2] - epsilon && self.mx < win -> windowCoords[2] + epsilon && self.my > win -> windowCoords[1] - epsilon && self.my < win -> windowCoords[1] + epsilon) {
+                    win32SetCursor(CURSOR_DIAGONALLEFT);
+                    win -> resize = -3;
+                } else if (self.mx > win -> windowCoords[0] - epsilon && self.mx < win -> windowCoords[0] + epsilon && self.my > win -> windowCoords[3] - epsilon && self.my < win -> windowCoords[3] + epsilon) {
+                    win32SetCursor(CURSOR_DIAGONALLEFT);
+                    win -> resize = -7;
+                } else if (self.mx > win -> windowCoords[0] - epsilon && self.mx < win -> windowCoords[0] + epsilon && self.my > win -> windowCoords[1] - epsilon && self.my < win -> windowCoords[1] + epsilon) {
+                    win32SetCursor(CURSOR_DIAGONALRIGHT);
+                    win -> resize = -1;
+                } else if (self.mx > win -> windowCoords[2] - epsilon && self.mx < win -> windowCoords[2] + epsilon && self.my > win -> windowCoords[3] - epsilon && self.my < win -> windowCoords[3] + epsilon) {
+                    win32SetCursor(CURSOR_DIAGONALRIGHT);
+                    win -> resize = -5;
+                } else if (self.mx > win -> windowCoords[0] && self.mx < win -> windowCoords[2] && self.my > win -> windowCoords[1] - epsilon && self.my < win -> windowCoords[1] + epsilon) {
+                    win32SetCursor(CURSOR_UPDOWN);
+                    win -> resize = -2;
+                } else if (self.mx > win -> windowCoords[2] - epsilon && self.mx < win -> windowCoords[2] + epsilon && self.my > win -> windowCoords[1] && self.my < win -> windowCoords[3]) {
+                    win32SetCursor(CURSOR_SIDESIDE);
+                    win -> resize = -4;
+                } else if (self.mx > win -> windowCoords[0] && self.mx < win -> windowCoords[2] && self.my > win -> windowCoords[3] - epsilon && self.my < win -> windowCoords[3] + epsilon) {
+                    win32SetCursor(CURSOR_UPDOWN);
+                    win -> resize = -6;
+                } else if (self.mx > win -> windowCoords[0] - epsilon && self.mx < win -> windowCoords[0] + epsilon && self.my > win -> windowCoords[1] && self.my < win -> windowCoords[3]) {
+                    win32SetCursor(CURSOR_SIDESIDE);
+                    win -> resize = -8;
+                } else {
+                    win -> resize = 0;
+                }
+            }
+        }
+        if (win -> resize > 0) {
             switch (win -> resize) {
                 case 1:
-                    win32SetCursor(CURSOR_DIAGONALRIGHT);
+                win -> windowCoords[0] = self.mx;
+                win -> windowCoords[1] = self.my;
+                if (win -> windowCoords[0] > win -> windowCoords[2] - win -> windowMinX) {
+                    win -> windowCoords[0] = win -> windowCoords[2] - win -> windowMinX;
+                }
+                if (win -> windowCoords[1] > win -> windowCoords[3] - win -> windowMinY) {
+                    win -> windowCoords[1] = win -> windowCoords[3] - win -> windowMinY;
+                }
                 break;
                 case 2:
-                    win32SetCursor(CURSOR_UPDOWN);
+                win -> windowCoords[1] = self.my;
+                if (win -> windowCoords[1] > win -> windowCoords[3] - win -> windowMinY) {
+                    win -> windowCoords[1] = win -> windowCoords[3] - win -> windowMinY;
+                }
                 break;
                 case 3:
-                    win32SetCursor(CURSOR_DIAGONALLEFT);
+                win -> windowCoords[2] = self.mx;
+                win -> windowCoords[1] = self.my;
+                if (win -> windowCoords[2] < win -> windowCoords[0] + win -> windowMinX) {
+                    win -> windowCoords[2] = win -> windowCoords[0] + win -> windowMinX;
+                }
+                if (win -> windowCoords[1] > win -> windowCoords[3] - win -> windowMinY) {
+                    win -> windowCoords[1] = win -> windowCoords[3] - win -> windowMinY;
+                }
                 break;
                 case 4:
-                    win32SetCursor(CURSOR_SIDESIDE);
+                win -> windowCoords[2] = self.mx;
+                if (win -> windowCoords[2] < win -> windowCoords[0] + win -> windowMinX) {
+                    win -> windowCoords[2] = win -> windowCoords[0] + win -> windowMinX;
+                }
                 break;
                 case 5:
-                    win32SetCursor(CURSOR_DIAGONALRIGHT);
+                win -> windowCoords[2] = self.mx;
+                win -> windowCoords[3] = self.my;
+                if (win -> windowCoords[2] < win -> windowCoords[0] + win -> windowMinX) {
+                    win -> windowCoords[2] = win -> windowCoords[0] + win -> windowMinX;
+                }
+                if (win -> windowCoords[3] < win -> windowCoords[1] + win -> windowMinY) {
+                    win -> windowCoords[3] = win -> windowCoords[1] + win -> windowMinY;
+                }
                 break;
                 case 6:
-                    win32SetCursor(CURSOR_UPDOWN);
+                win -> windowCoords[3] = self.my;
+                if (win -> windowCoords[3] < win -> windowCoords[1] + win -> windowMinY) {
+                    win -> windowCoords[3] = win -> windowCoords[1] + win -> windowMinY;
+                }
                 break;
                 case 7:
-                    win32SetCursor(CURSOR_DIAGONALLEFT);
+                win -> windowCoords[0] = self.mx;
+                win -> windowCoords[3] = self.my;
+                if (win -> windowCoords[0] > win -> windowCoords[2] - win -> windowMinX) {
+                    win -> windowCoords[0] = win -> windowCoords[2] - win -> windowMinX;
+                }
+                if (win -> windowCoords[3] < win -> windowCoords[1] + win -> windowMinY) {
+                    win -> windowCoords[3] = win -> windowCoords[1] + win -> windowMinY;
+                }
                 break;
                 case 8:
-                    win32SetCursor(CURSOR_SIDESIDE);
+                win -> windowCoords[0] = self.mx;
+                if (win -> windowCoords[0] > win -> windowCoords[2] - win -> windowMinX) {
+                    win -> windowCoords[0] = win -> windowCoords[2] - win -> windowMinX;
+                }
                 break;
                 default:
                 break;
             }
-        }
-    } else {
-        int resizeSum = 0;
-        for (int i = 0; i < NUM_WINDOWS; i++) {
-            if (i != window) {
-                resizeSum += self.windows[i].resize;
-            }
-        }
-        if (resizeSum == 0) {
-            if (self.mx > win -> windowCoords[2] - epsilon && self.mx < win -> windowCoords[2] + epsilon && self.my > win -> windowCoords[1] - epsilon && self.my < win -> windowCoords[1] + epsilon) {
-                win32SetCursor(CURSOR_DIAGONALLEFT);
-                win -> resize = -3;
-            } else if (self.mx > win -> windowCoords[0] - epsilon && self.mx < win -> windowCoords[0] + epsilon && self.my > win -> windowCoords[3] - epsilon && self.my < win -> windowCoords[3] + epsilon) {
-                win32SetCursor(CURSOR_DIAGONALLEFT);
-                win -> resize = -7;
-            } else if (self.mx > win -> windowCoords[0] - epsilon && self.mx < win -> windowCoords[0] + epsilon && self.my > win -> windowCoords[1] - epsilon && self.my < win -> windowCoords[1] + epsilon) {
-                win32SetCursor(CURSOR_DIAGONALRIGHT);
-                win -> resize = -1;
-            } else if (self.mx > win -> windowCoords[2] - epsilon && self.mx < win -> windowCoords[2] + epsilon && self.my > win -> windowCoords[3] - epsilon && self.my < win -> windowCoords[3] + epsilon) {
-                win32SetCursor(CURSOR_DIAGONALRIGHT);
-                win -> resize = -5;
-            } else if (self.mx > win -> windowCoords[0] && self.mx < win -> windowCoords[2] && self.my > win -> windowCoords[1] - epsilon && self.my < win -> windowCoords[1] + epsilon) {
-                win32SetCursor(CURSOR_UPDOWN);
-                win -> resize = -2;
-            } else if (self.mx > win -> windowCoords[2] - epsilon && self.mx < win -> windowCoords[2] + epsilon && self.my > win -> windowCoords[1] && self.my < win -> windowCoords[3]) {
-                win32SetCursor(CURSOR_SIDESIDE);
-                win -> resize = -4;
-            } else if (self.mx > win -> windowCoords[0] && self.mx < win -> windowCoords[2] && self.my > win -> windowCoords[3] - epsilon && self.my < win -> windowCoords[3] + epsilon) {
-                win32SetCursor(CURSOR_UPDOWN);
-                win -> resize = -6;
-            } else if (self.mx > win -> windowCoords[0] - epsilon && self.mx < win -> windowCoords[0] + epsilon && self.my > win -> windowCoords[1] && self.my < win -> windowCoords[3]) {
-                win32SetCursor(CURSOR_SIDESIDE);
-                win -> resize = -8;
-            } else {
-                win -> resize = 0;
-            }
-        }
-    }
-    if (win -> resize > 0) {
-        switch (win -> resize) {
-            case 1:
-            win -> windowCoords[0] = self.mx;
-            win -> windowCoords[1] = self.my;
-            if (win -> windowCoords[0] > win -> windowCoords[2] - win -> windowMinX) {
-                win -> windowCoords[0] = win -> windowCoords[2] - win -> windowMinX;
-            }
-            if (win -> windowCoords[1] > win -> windowCoords[3] - win -> windowMinY) {
-                win -> windowCoords[1] = win -> windowCoords[3] - win -> windowMinY;
-            }
-            break;
-            case 2:
-            win -> windowCoords[1] = self.my;
-            if (win -> windowCoords[1] > win -> windowCoords[3] - win -> windowMinY) {
-                win -> windowCoords[1] = win -> windowCoords[3] - win -> windowMinY;
-            }
-            break;
-            case 3:
-            win -> windowCoords[2] = self.mx;
-            win -> windowCoords[1] = self.my;
-            if (win -> windowCoords[2] < win -> windowCoords[0] + win -> windowMinX) {
-                win -> windowCoords[2] = win -> windowCoords[0] + win -> windowMinX;
-            }
-            if (win -> windowCoords[1] > win -> windowCoords[3] - win -> windowMinY) {
-                win -> windowCoords[1] = win -> windowCoords[3] - win -> windowMinY;
-            }
-            break;
-            case 4:
-            win -> windowCoords[2] = self.mx;
-            if (win -> windowCoords[2] < win -> windowCoords[0] + win -> windowMinX) {
-                win -> windowCoords[2] = win -> windowCoords[0] + win -> windowMinX;
-            }
-            break;
-            case 5:
-            win -> windowCoords[2] = self.mx;
-            win -> windowCoords[3] = self.my;
-            if (win -> windowCoords[2] < win -> windowCoords[0] + win -> windowMinX) {
-                win -> windowCoords[2] = win -> windowCoords[0] + win -> windowMinX;
-            }
-            if (win -> windowCoords[3] < win -> windowCoords[1] + win -> windowMinY) {
-                win -> windowCoords[3] = win -> windowCoords[1] + win -> windowMinY;
-            }
-            break;
-            case 6:
-            win -> windowCoords[3] = self.my;
-            if (win -> windowCoords[3] < win -> windowCoords[1] + win -> windowMinY) {
-                win -> windowCoords[3] = win -> windowCoords[1] + win -> windowMinY;
-            }
-            break;
-            case 7:
-            win -> windowCoords[0] = self.mx;
-            win -> windowCoords[3] = self.my;
-            if (win -> windowCoords[0] > win -> windowCoords[2] - win -> windowMinX) {
-                win -> windowCoords[0] = win -> windowCoords[2] - win -> windowMinX;
-            }
-            if (win -> windowCoords[3] < win -> windowCoords[1] + win -> windowMinY) {
-                win -> windowCoords[3] = win -> windowCoords[1] + win -> windowMinY;
-            }
-            break;
-            case 8:
-            win -> windowCoords[0] = self.mx;
-            if (win -> windowCoords[0] > win -> windowCoords[2] - win -> windowMinX) {
-                win -> windowCoords[0] = win -> windowCoords[2] - win -> windowMinX;
-            }
-            break;
-            default:
-            break;
         }
     }
 }
 
 void renderOscData() {
     self.bottomBound = self.topBound * -1;
-    /* render window background */
-    turtleRentangle(self.windows[0].windowCoords[0], self.windows[0].windowCoords[1], self.windows[0].windowCoords[2], self.windows[0].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
     /* render data */
     if (!self.stop) { 
         self.rightBound = self.data -> length;
@@ -619,20 +660,22 @@ void renderOscData() {
     if (self.rightBound > self.leftBound + self.windowSize) {
         self.leftBound = self.rightBound - self.windowSize;
     }
-    turtlePenSize(1);
-    turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
-    double xquantum = (self.windows[0].windowCoords[2] - self.windows[0].windowCoords[0]) / (self.rightBound - self.leftBound - 1);
-    for (int i = 0; i < self.rightBound - self.leftBound; i++) {
-        turtleGoto(self.windows[0].windowCoords[0] + i * xquantum, self.windows[0].windowCoords[1] + ((self.data -> data[self.leftBound + i].d - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.windows[0].windowCoords[3] - self.windows[0].windowTop - self.windows[0].windowCoords[1]));
-        turtlePenDown();
+    if (self.windows[0].minimize == 0) {
+        /* render window background */
+        turtleRectangle(self.windows[0].windowCoords[0], self.windows[0].windowCoords[1], self.windows[0].windowCoords[2], self.windows[0].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+        turtlePenSize(1);
+        turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
+        double xquantum = (self.windows[0].windowCoords[2] - self.windows[0].windowCoords[0]) / (self.rightBound - self.leftBound - 1);
+        for (int i = 0; i < self.rightBound - self.leftBound; i++) {
+            turtleGoto(self.windows[0].windowCoords[0] + i * xquantum, self.windows[0].windowCoords[1] + ((self.data -> data[self.leftBound + i].d - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.windows[0].windowCoords[3] - self.windows[0].windowTop - self.windows[0].windowCoords[1]));
+            turtlePenDown();
+        }
+        turtlePenUp();
     }
-    turtlePenUp();
 }
 
 void renderFreqData() {
-    self.bottomBound = self.topBound * -1;
-    /* render window background */
-    turtleRentangle(self.windows[1].windowCoords[0], self.windows[1].windowCoords[1], self.windows[1].windowCoords[2], self.windows[1].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+    (self.windows[1].windowCoords[0], self.windows[1].windowCoords[1], self.windows[1].windowCoords[2], self.windows[1].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
     /* linear windowing function over 10% of the sample */
     int threshold = (self.rightBound - self.leftBound) * 0.1;
     double damping = 1.0 / threshold;
@@ -642,25 +685,38 @@ void renderFreqData() {
         if (i < threshold) {
             dataPoint *= damping * (i + 1);
         }
-        if (i >= self.rightBound - threshold) {
-            dataPoint *= damping * (self.rightBound - (i - 1));
+        if (i >= (self.rightBound - self.leftBound) - threshold) {
+            dataPoint *= damping * ((self.rightBound - self.leftBound) - (i - 1));
         }
-        list_append(self.freqData, (unitype) (i / 60.0), 'd');
         list_append(self.freqData, (unitype) dataPoint, 'd');
     }
     // list_print(self.freqData);
     // list_t *tempData = FFT(self.freqData);
     // list_print(tempData);
-    // turtlePenSize(1);
-    // turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
-    // double xquantum = (self.windows[1].windowCoords[2] - self.windows[1].windowCoords[0]) / ((tempData -> length) / 2 - 1);
-    // for (int i = 0; i < (tempData -> length) / 2; i++) {
-    //     double magnitude = tempData -> data[i * 2].d * tempData -> data[i * 2].d + tempData -> data[i * 2 + 1].d * tempData -> data[i * 2 + 1].d;
-    //     turtleGoto(self.windows[1].windowCoords[0] + i * xquantum, self.windows[1].windowCoords[1] + ((magnitude - self.bottomBound) / (self.topBound - self.bottomBound)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]));
-    //     turtlePenDown();
-    // }
-    // turtlePenUp();
+    if (self.windows[1].minimize == 0) {
+        /* render window background */
+        turtleRectangle(self.windows[1].windowCoords[0], self.windows[1].windowCoords[1], self.windows[1].windowCoords[2], self.windows[1].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+        turtlePenSize(1);
+        turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
+        double xquantum = (self.windows[1].windowCoords[2] - self.windows[1].windowCoords[0]) / (self.freqData -> length - 1);
+        for (int i = 0; i < self.freqData -> length; i++) {
+            double magnitude = self.freqData -> data[i].d;
+            if (magnitude < 0) {
+                magnitude = 0;
+            }
+            turtleGoto(self.windows[1].windowCoords[0] + i * xquantum, self.windows[1].windowCoords[1] + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]));
+            turtlePenDown();
+        }
+        turtlePenUp();
+    }
     // list_free(tempData);
+}
+
+void renderEditorData() {
+    if (self.windows[2].minimize == 0) {
+        /* render window background */
+        turtleRectangle(self.windows[2].windowCoords[0], self.windows[2].windowCoords[1], self.windows[2].windowCoords[2], self.windows[2].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+    }
 }
 
 void renderOrder() {
@@ -668,15 +724,33 @@ void renderOrder() {
         switch (self.windowRender -> data[i].i) {
         case WINDOW_OSC:
             renderOscData();
-            renderWindow(ilog2(WINDOW_OSC));
-        break;
+            break;
         case WINDOW_FREQ:
             renderFreqData();
-            renderWindow(ilog2(WINDOW_FREQ));
-        break;
+            break;
+        case WINDOW_EDITOR:
+            renderEditorData();
+            break;
         default:
-        break;    
+            break;    
         }
+        renderWindow(ilog2(self.windowRender -> data[i].i));
+    }
+    /* render bottom bar */
+    turtleRectangle(-320, -180, 320, -170, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 50);
+    for (int i = 0; i < self.windowRender -> length; i++) {
+        /* write title */
+        int minX = -320 + (1) + 50 * i;
+        int minY = -179;
+        int maxX = -320 + (49) + 50 * i;
+        int maxY = -171;
+        if (!self.mouseDown && self.mx >= minX && self.mx <= maxX && self.my >= minY && self.my <= maxY) {
+            turtleRectangle(minX, minY, maxX, maxY, self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+            self.windows[i].click = 2;
+        } else {
+            turtleRectangle(minX, minY, maxX, maxY, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
+        }
+        textGLWriteString(self.windows[i].title, -320 + (50 / 2) + 50 * i, -175, 5, 50);
     }
 }
 
