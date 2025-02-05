@@ -775,7 +775,9 @@ int main(int argc, char *argv[]) {
     glfwWindowHint(GLFW_SAMPLES, 4); // MSAA (Anti-Aliasing) with 4 samples (must be done before window is created (?))
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(3456, 1944, "EMPV", NULL, NULL);
+    const GLFWvidmode *monitorSize = glfwGetVideoMode(glfwGetPrimaryMonitor());
+    int windowHeight = monitorSize -> height * 0.85;
+    window = glfwCreateWindow(windowHeight * 16 / 9, windowHeight, "EMPV", NULL, NULL);
     if (!window) {
         glfwTerminate();
         return -1;
