@@ -463,10 +463,11 @@ void renderWindow(int window) {
     } else {
         if (win -> minimize == 0) {
             int moveSum = 0;
-            for (int i = 0; i < NUM_WINDOWS; i++) {
-                if (i != window) {
-                    moveSum += self.windows[i].move;
+            for (int i = self.windowRender -> length - 1; i >= 0; i--) {
+                if (self.windowRender -> data[i].i == pow2(window)) {
+                    break;
                 }
+                moveSum += self.windows[ilog2(self.windowRender -> data[i].i)].move;
             }
             if (self.mx > win -> windowCoords[0] && self.mx < win -> windowCoords[2] && self.my > win -> windowCoords[3] - win -> windowTop && self.my < win -> windowCoords[3] && moveSum == 0) {
                 win -> move = -1;
@@ -474,10 +475,11 @@ void renderWindow(int window) {
                 win -> move = 0;
             }
             int clickSum = 0;
-            for (int i = 0; i < NUM_WINDOWS; i++) {
-                if (i != window) {
-                    clickSum += self.windows[i].click;
+            for (int i = self.windowRender -> length - 1; i >= 0; i--) {
+                if (self.windowRender -> data[i].i == pow2(window)) {
+                    break;
                 }
+                clickSum += self.windows[ilog2(self.windowRender -> data[i].i)].click;
             }
             if (self.mx > win -> windowCoords[0] && self.mx < win -> windowCoords[2] && self.my > win -> windowCoords[1] && self.my < win -> windowCoords[3] && clickSum == 0) {
                 win -> click = 1;
@@ -536,10 +538,12 @@ void renderWindow(int window) {
             }
         } else {
             int resizeSum = 0;
-            for (int i = 0; i < NUM_WINDOWS; i++) {
-                if (i != window) {
-                    resizeSum += self.windows[i].resize;
+            for (int i = self.windowRender -> length - 1; i >= 0; i--) {
+                if (self.windowRender -> data[i].i == pow2(window)) {
+                    break;
                 }
+                resizeSum += self.windows[ilog2(self.windowRender -> data[i].i)].resize;
+                resizeSum += self.windows[ilog2(self.windowRender -> data[i].i)].click;
             }
             if (resizeSum == 0) {
                 if (self.mx > win -> windowCoords[2] - epsilon && self.mx < win -> windowCoords[2] + epsilon && self.my > win -> windowCoords[1] - epsilon && self.my < win -> windowCoords[1] + epsilon) {
