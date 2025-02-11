@@ -671,6 +671,14 @@ void renderOscData() {
         /* render window background */
         turtleRectangle(self.windows[0].windowCoords[0], self.windows[0].windowCoords[1], self.windows[0].windowCoords[2], self.windows[0].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         turtlePenSize(1);
+        turtlePenColor(0, 0, 0);
+        turtleGoto(self.windows[0].windowCoords[0], (self.windows[0].windowCoords[1] - self.windows[0].windowTop + self.windows[0].windowCoords[3]) / 2);
+        turtlePenDown();
+        turtleGoto(self.windows[0].windowCoords[2], (self.windows[0].windowCoords[1] - self.windows[0].windowTop + self.windows[0].windowCoords[3]) / 2
+    );
+        turtlePenUp();
+        /* render data */
+        turtlePenSize(1);
         turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
         double xquantum = (self.windows[0].windowCoords[2] - self.windows[0].windowCoords[0]) / (self.oscRightBound - self.oscLeftBound - 1);
         for (int i = 0; i < self.oscRightBound - self.oscLeftBound; i++) {
@@ -678,9 +686,9 @@ void renderOscData() {
             turtlePenDown();
         }
         turtlePenUp();
+        /* render mouse */
         if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_OSC) {
-            /* render mouse */
-            if (self.mx > self.windows[0].windowCoords[0] && self.my > self.windows[0].windowCoords[1] && self.mx < self.windows[0].windowCoords[2] && self.windows[0].windowCoords[3] - self.windows[0].windowTop) {
+            if (self.mx > self.windows[0].windowCoords[0] + 10 && self.my > self.windows[0].windowCoords[1] && self.mx < self.windows[0].windowCoords[2] && self.windows[0].windowCoords[3] - self.windows[0].windowTop) {
                 int sample = round((self.mx - self.windows[0].windowCoords[0]) / xquantum);
                 double sampleX = self.windows[0].windowCoords[0] + sample * xquantum;
                 double sampleY = self.windows[0].windowCoords[1] + ((self.data -> data[self.oscLeftBound + sample].d - self.oscBottomBound) / (self.oscTopBound - self.oscBottomBound)) * (self.windows[0].windowCoords[3] - self.windows[0].windowTop - self.windows[0].windowCoords[1]);
@@ -693,15 +701,60 @@ void renderOscData() {
                 sprintf(sampleValue, "%.02lf", self.data -> data[self.oscLeftBound + sample].d);
                 double boxLength = textGLGetStringLength(sampleValue, 8);
                 double boxX = sampleX - boxLength / 2;
-                if (boxX - 5 < self.windows[0].windowCoords[0]) {
-                    boxX = self.windows[0].windowCoords[0] + 5;
+                if (boxX - 15 < self.windows[0].windowCoords[0]) {
+                    boxX = self.windows[0].windowCoords[0] + 15;
                 }
-                if (boxX + boxLength + 5 > self.windows[0].windowCoords[2]) {
-                    boxX = self.windows[0].windowCoords[2] - boxLength - 5;
+                if (boxX + boxLength + self.windows[0].windowSide + 5 > self.windows[0].windowCoords[2]) {
+                    boxX = self.windows[0].windowCoords[2] - boxLength - self.windows[0].windowSide - 5;
                 }
                 turtleRectangle(boxX - 3, self.windows[0].windowCoords[3] - self.windows[0].windowTop - 15, boxX + boxLength + 3, self.windows[0].windowCoords[3] - self.windows[0].windowTop - 5, 215, 215, 215, 0);
                 turtlePenColor(0, 0, 0);
                 textGLWriteString(sampleValue, boxX, self.windows[0].windowCoords[3] - 26, 8, 0);
+            }
+        }
+        /* render side axis */
+        turtleRectangle(self.windows[0].windowCoords[0], self.windows[0].windowCoords[1], self.windows[0].windowCoords[0] + 10, self.windows[0].windowCoords[3], 30, 30, 30, 100);
+        turtlePenColor(0, 0, 0);
+        turtlePenSize(1);
+        double ycenter = (self.windows[0].windowCoords[1] + self.windows[0].windowCoords[3] - self.windows[0].windowTop) / 2;
+        turtleGoto(self.windows[0].windowCoords[0], ycenter);
+        turtlePenDown();
+        turtleGoto(self.windows[0].windowCoords[0] + 5, ycenter);
+        turtlePenUp();
+        int tickMarks = round(self.oscTopBound / 4) * 4;
+        double culling = self.oscTopBound;
+        while (culling > 60) {
+            culling /= 4;
+            tickMarks /= 4;
+        }
+        tickMarks = ceil(tickMarks / 4) * 4;
+        double yquantum = (self.windows[0].windowCoords[3] - self.windows[0].windowTop - self.windows[0].windowCoords[1]) / tickMarks;
+        for (int i = 1; i < tickMarks; i++) {
+            double ypos = self.windows[0].windowCoords[1] + i * yquantum;
+            turtleGoto(self.windows[0].windowCoords[0], ypos);
+            turtlePenDown();
+            int tickLength = 2;
+            if (i % (tickMarks / 4) == 0) {
+                tickLength = 4;
+            }
+            turtleGoto(self.windows[0].windowCoords[0] + tickLength, ypos);
+            turtlePenUp();
+        }
+        if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_OSC) {
+            int mouseSample = round((self.my - self.windows[0].windowCoords[1]) / yquantum);
+            if (mouseSample > 0 && mouseSample < tickMarks) {
+                double ypos = self.windows[0].windowCoords[1] + mouseSample * yquantum;
+                int tickLength = 2;
+                if (mouseSample % (tickMarks / 4) == 0) {
+                    tickLength = 4;
+                }
+                if (self.mx > self.windows[0].windowCoords[0] && self.mx < self.windows[0].windowCoords[0] + 10) {
+                    turtleTriangle(self.windows[0].windowCoords[0] + tickLength + 2, ypos, self.windows[0].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[0].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
+                    char tickValue[24];
+                    sprintf(tickValue, "%d", (int) (self.oscTopBound / (tickMarks / 2) * mouseSample - self.oscTopBound));
+                    turtlePenColor(215, 215, 215);
+                    textGLWriteString(tickValue, self.windows[0].windowCoords[0] + tickLength + 13, ypos, 8, 0);
+                }
             }
         }
     }
