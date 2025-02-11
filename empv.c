@@ -10,6 +10,7 @@ Ethernet documentation: https://learn.microsoft.com/en-us/windows/win32/winsock/
 #include "include/ribbon.h"
 #include "include/popup.h"
 #include "include/win32Tools.h"
+#include "include/win32tcp.h"
 #include <time.h>
 
 #define DIAL_LINEAR     0
@@ -20,7 +21,7 @@ Ethernet documentation: https://learn.microsoft.com/en-us/windows/win32/winsock/
 
 #define WINDOW_OSC      1
 #define WINDOW_FREQ     2
-#define WINDOW_EDITOR  4
+#define WINDOW_EDITOR   4
 
 typedef struct { // dial
     char label[24];
@@ -89,7 +90,8 @@ typedef struct { // all the empv shared state is here
         list_t *freqData;
         double topFreq; // top bound (y value)
     /* editor view */
-
+        double editorBottomBound;
+        double editorWindowSize; // size of window
 
 } empv_t;
 
@@ -184,7 +186,7 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[0].dials = list_init();
     self.windows[0].switches = list_init();
     list_append(self.windows[0].dials, (unitype) (void *) dialInit("X Scale", &self.windowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[0].windowTop, 8, 1, 1000), 'p');
-    list_append(self.windows[0].dials, (unitype) (void *) dialInit("Y Scale", &self.topBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[0].windowTop, 8, 20, 10000), 'p');
+    list_append(self.windows[0].dials, (unitype) (void *) dialInit("Y Scale", &self.topBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[0].windowTop, 8, 50, 10000), 'p');
     list_append(self.windows[0].switches, (unitype) (void *) switchInit("Pause", &self.stop, WINDOW_OSC, 1, -100 - self.windows[0].windowTop, 8), 'p');
 
     /* frequency */
@@ -896,10 +898,12 @@ int main(int argc, char *argv[]) {
     /* initialise ribbon */
     ribbonInit(window, "include/ribbonConfig.txt");
     ribbonDarkTheme(); // dark theme preset
-    /* initialiseTwin32tools */
+    /* initialise win32tools */
     win32ToolsInit();
     win32FileDialogAddExtension("txt"); // add txt to extension restrictions
     win32FileDialogAddExtension("csv"); // add csv to extension restrictions
+    /* initialise win32tcp */
+    win32tcpInit("192.168.1.10");
 
     int tps = 120; // ticks per second (locked to fps in this case)
     uint64_t tick = 0;
@@ -930,6 +934,7 @@ int main(int argc, char *argv[]) {
             turtleSetWorldCoordinates(-320, -180, 320, 180); // doesn't work correctly
         }
         turtleUpdate(); // update the screen
+        win32tcpUpdate();
         end = clock();
         while ((double) (end - start) / CLOCKS_PER_SEC < (1.0 / tps)) {
             end = clock();

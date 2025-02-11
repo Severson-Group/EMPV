@@ -25,6 +25,7 @@ That's it! (probably)
 IFileDialog: https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ifiledialog
 Clipboard: https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard
 Cursor: https://learn.microsoft.com/en-us/windows/win32/learnwin32/setting-the-cursor-image
+Sockets: https://learn.microsoft.com/en-us/windows/win32/winsock/tcp-ip-raw-sockets-2
 */
 
 #ifndef WIN32FILE
