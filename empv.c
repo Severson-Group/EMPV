@@ -688,7 +688,7 @@ void renderOscData() {
         turtlePenUp();
         /* render mouse */
         if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_OSC) {
-            if (self.mx > self.windows[0].windowCoords[0] + 10 && self.my > self.windows[0].windowCoords[1] && self.mx < self.windows[0].windowCoords[2] && self.windows[0].windowCoords[3] - self.windows[0].windowTop) {
+            if (self.mx > self.windows[0].windowCoords[0] + 15 && self.my > self.windows[0].windowCoords[1] && self.mx < self.windows[0].windowCoords[2] && self.windows[0].windowCoords[3] - self.windows[0].windowTop) {
                 int sample = round((self.mx - self.windows[0].windowCoords[0]) / xquantum);
                 double sampleX = self.windows[0].windowCoords[0] + sample * xquantum;
                 double sampleY = self.windows[0].windowCoords[1] + ((self.data -> data[self.oscLeftBound + sample].d - self.oscBottomBound) / (self.oscTopBound - self.oscBottomBound)) * (self.windows[0].windowCoords[3] - self.windows[0].windowTop - self.windows[0].windowCoords[1]);
@@ -748,7 +748,7 @@ void renderOscData() {
                 if (mouseSample % (tickMarks / 4) == 0) {
                     tickLength = 4;
                 }
-                if (self.mx > self.windows[0].windowCoords[0] && self.mx < self.windows[0].windowCoords[0] + 10) {
+                if (self.mx > self.windows[0].windowCoords[0] && self.mx < self.windows[0].windowCoords[0] + 15) {
                     turtleTriangle(self.windows[0].windowCoords[0] + tickLength + 2, ypos, self.windows[0].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[0].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
                     char tickValue[24];
                     sprintf(tickValue, "%d", (int) (self.oscTopBound / (tickMarks / 2) * mouseSample - self.oscTopBound));
