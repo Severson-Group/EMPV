@@ -6,19 +6,20 @@ https://learn.microsoft.com/en-us/windows/win32/winsock/complete-server-code
 #ifndef WIN32TCP
 #define WIN32TCP 1 // include guard
 
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include <shobjidl.h>
 #include <string.h>
 
 typedef struct {
-    SOCKET socket;
+    SOCKET connectSocket;
     struct sockaddr address;
 } win32SocketObject;
 
 win32SocketObject win32Socket;
 
-void win32tcpInit(char *address) {
-    win32Socket.socket = socket(AF_INET, SOCK_STREAM, 0);
+void win32tcpInit(char *address, char *port) {
     char modifiable[strlen(address) + 1];
     strcpy(modifiable, address);
     win32Socket.address.sa_family = AF_INET; // IPv4
@@ -45,14 +46,99 @@ void win32tcpInit(char *address) {
     }
     printf("Connecting to %d.%d.%d.%d\n", ipAddress[0], ipAddress[1], ipAddress[2], ipAddress[3]);
     memcpy(win32Socket.address.sa_data, ipAddress, 4);
-    int err = bind(win32Socket.socket, &win32Socket.address, sizeof(SOCKADDR_IN));
-    err = listen(win32Socket.socket, 0);
+    /* Initialize Winsock */
+    WSADATA wsaData;
+    int iResult;
+    iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
+    if (iResult != 0) {
+        printf("WSAStartup failed with error: %d\n", iResult);
+        return;
+    }
+    
+    /* hints */
+    struct addrinfo hints;
+    struct addrinfo *result;
+    struct addrinfo *ptr;
+    ZeroMemory(&hints, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    /* Resolve the server address and port */
+    iResult = getaddrinfo(address, port, &hints, &result);
+    if (iResult != 0) {
+        printf("getaddrinfo failed with error: %d\n", iResult);
+        WSACleanup();
+        return;
+    }
+
+    /* Attempt to connect to an address until one succeeds */
+    for (ptr = result; ptr != NULL ;ptr=ptr->ai_next) {
+
+        /* Create a SOCKET for connecting to server */
+        win32Socket.connectSocket = socket(ptr->ai_family, ptr->ai_socktype, 
+            ptr->ai_protocol);
+        if (win32Socket.connectSocket == INVALID_SOCKET) {
+            printf("socket failed with error: %ld\n", WSAGetLastError());
+            WSACleanup();
+            return;
+        }
+
+        /* Connect to server */
+        iResult = connect(win32Socket.connectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+        if (iResult == SOCKET_ERROR) {
+            closesocket(win32Socket.connectSocket);
+            win32Socket.connectSocket = INVALID_SOCKET;
+            continue;
+        }
+        break;
+    }
+
+    /* Send an initial buffer */
+    char sendbuf[2] = {12, 34};
+    iResult = send(win32Socket.connectSocket, sendbuf, (int) strlen(sendbuf), 0);
+    if (iResult == SOCKET_ERROR) {
+        printf("send failed with error: %d\n", WSAGetLastError());
+        closesocket(win32Socket.connectSocket);
+        WSACleanup();
+        return;
+    }
+
+    printf("Bytes Sent: %ld\n", iResult);
+
+    /* shutdown the connection since no more data will be sent */
+    iResult = shutdown(win32Socket.connectSocket, SD_SEND);
+    if (iResult == SOCKET_ERROR) {
+        printf("shutdown failed with error: %d\n", WSAGetLastError());
+        closesocket(win32Socket.connectSocket);
+        WSACleanup();
+        return;
+    }
+
+    /* Receive until the peer closes the connection */
+    int recvbuflen = 512;
+    char recvbuf[recvbuflen];
+    do {
+
+        iResult = recv(win32Socket.connectSocket, recvbuf, recvbuflen, 0);
+        if ( iResult > 0 )
+            printf("Bytes received: %d\n", iResult);
+        else if ( iResult == 0 )
+            printf("Connection closed\n");
+        else
+            printf("recv failed with error: %d\n", WSAGetLastError());
+
+    } while (iResult > 0);
+
+    /* cleanup */
+    closesocket(win32Socket.connectSocket);
+    WSACleanup();
+
+    return;
 }
 
 void win32tcpUpdate() {
-    SOCKET newSocket = accept(win32Socket.socket, NULL, NULL);
-    char c;
-    // read(newSocket, &c, 1);
+
 }
 
 void win32tcpSend(char *data, int length) {

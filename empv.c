@@ -9,8 +9,8 @@ Ethernet documentation: https://learn.microsoft.com/en-us/windows/win32/winsock/
 
 #include "include/ribbon.h"
 #include "include/popup.h"
-#include "include/win32Tools.h"
 #include "include/win32tcp.h"
+#include "include/win32Tools.h"
 #include <time.h>
 
 #define DIAL_LINEAR     0
@@ -222,7 +222,7 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[2].click = 0;
     self.windows[2].resize = 0;
     self.windows[2].dials = list_init();
-    self.windows[2].switches = list_init();
+    self.windows[2].switches = list_init();    
 }
 
 int ilog2(int input) {
@@ -911,6 +911,10 @@ void parseRibbonOutput() {
     }
 }
 
+void searchMapfile(char *filepath) {
+
+}
+
 int randomInt(int lowerBound, int upperBound) { // random integer between lower and upper bound (inclusive)
     return (rand() % (upperBound - lowerBound + 1) + lowerBound);
 }
@@ -983,7 +987,7 @@ int main(int argc, char *argv[]) {
     win32FileDialogAddExtension("txt"); // add txt to extension restrictions
     win32FileDialogAddExtension("csv"); // add csv to extension restrictions
     /* initialise win32tcp */
-    win32tcpInit("192.168.1.10");
+    win32tcpInit("192.168.1.10", "7");
 
     int tps = 120; // ticks per second (locked to fps in this case)
     uint64_t tick = 0;
