@@ -987,7 +987,28 @@ int main(int argc, char *argv[]) {
     win32FileDialogAddExtension("txt"); // add txt to extension restrictions
     win32FileDialogAddExtension("csv"); // add csv to extension restrictions
     /* initialise win32tcp */
-    win32tcpInit("192.168.1.10", "7");
+    if (argc > 1) {
+        if (win32tcpInit("192.168.1.10", "7")) {
+            printf("Failed to connect to %s, ensure AMDC is plugged in and listening on port %s\n", win32Socket.address, win32Socket.port);
+        }
+        SOCKET *sockets[2] = {NULL, NULL};
+        sockets[0] = win32tcpCreateSocket();
+        if (sockets[0] != NULL) {
+            unsigned char receiveBuffer[10];
+            win32tcpReceive(sockets[0], receiveBuffer, 10);
+            unsigned char amdc_cmd_id[2] = {12, 34};
+            win32tcpSend(sockets[0], amdc_cmd_id, 2);
+            printf("Successfully created AMDC cmd socket\n");
+        }
+        sockets[1] = win32tcpCreateSocket();
+        if (sockets[0] != NULL) {
+            unsigned char receiveBuffer[10];
+            win32tcpReceive(sockets[0], receiveBuffer, 10);
+            unsigned char amdc_log_id[2] = {56, 78};
+            win32tcpSend(sockets[0], amdc_log_id, 2);
+            printf("Successfully created AMDC log socket\n");
+        }
+    }
 
     int tps = 120; // ticks per second (locked to fps in this case)
     uint64_t tick = 0;
@@ -1018,7 +1039,6 @@ int main(int argc, char *argv[]) {
             turtleSetWorldCoordinates(-320, -180, 320, 180); // doesn't work correctly
         }
         turtleUpdate(); // update the screen
-        win32tcpUpdate();
         end = clock();
         while ((double) (end - start) / CLOCKS_PER_SEC < (1.0 / tps)) {
             end = clock();
