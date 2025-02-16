@@ -44,6 +44,15 @@ typedef struct { // switch
     int *variable;
 } switch_t;
 
+typedef struct { // dropdown 
+    list_t *options;
+    int index;
+    int window;
+    int status;
+    double size;
+    double position[2];
+} dropdown_t;
+
 typedef struct { // general window attributes
     char title[32];
     double windowCoords[4]; // minX, minY, maxX, maxY
@@ -57,6 +66,7 @@ typedef struct { // general window attributes
     int resize;
     list_t *dials;
     list_t *switches;
+    list_t *dropdowns;
 } window_t;
 
 typedef struct { // all the empv shared state is here
@@ -114,6 +124,7 @@ dial_t *dialInit(char *label, double *variable, int window, int type, double ySc
     dial -> range[0] = bottom;
     dial -> range[1] = top;
     dial -> variable = variable;
+    return dial;
 }
 
 switch_t *switchInit(char *label, int *variable, int window, double yScale, double yOffset, double size) {
@@ -125,6 +136,19 @@ switch_t *switchInit(char *label, int *variable, int window, double yScale, doub
     switchp -> position[1] = yOffset;
     switchp -> size = size;
     switchp -> variable = variable;
+    return switchp;
+}
+
+dropdown_t *dropdownInit(list_t *options, int window, double yScale, double yOffset, double size) {
+    dropdown_t *dropdown = malloc(sizeof(dropdown_t));
+    dropdown -> options = options;
+    dropdown -> index = 0;
+    dropdown -> status = 0;
+    dropdown -> window = window;
+    dropdown -> position[0] = yScale;
+    dropdown -> position[1] = yOffset;
+    dropdown -> size = size;
+    return dropdown;
 }
 
 void init() { // initialises the empv variabes (shared state)
@@ -193,6 +217,7 @@ void init() { // initialises the empv variabes (shared state)
     self.stop = 0;
     self.windows[0].dials = list_init();
     self.windows[0].switches = list_init();
+    self.windows[0].dropdowns = list_init();
     list_append(self.windows[0].dials, (unitype) (void *) dialInit("X Scale", &self.oscWindowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[0].windowTop, 8, 4, 1024), 'p');
     list_append(self.windows[0].dials, (unitype) (void *) dialInit("Y Scale", &self.oscTopBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[0].windowTop, 8, 50, 10000), 'p');
     list_append(self.windows[0].switches, (unitype) (void *) switchInit("Pause", &self.stop, WINDOW_OSC, 1, -100 - self.windows[0].windowTop, 8), 'p');
@@ -219,6 +244,7 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[1].resize = 0;
     self.windows[1].dials = list_init();
     self.windows[1].switches = list_init();
+    self.windows[1].dropdowns = list_init();
     list_append(self.windows[1].dials, (unitype) (void *) dialInit("Y Scale", &self.topFreq, WINDOW_FREQ, DIAL_EXP, 1, -25 - self.windows[1].windowTop, 8, 500, 100000), 'p');
     /* editor */
     strcpy(self.windows[2].title, "Editor");
