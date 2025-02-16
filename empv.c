@@ -805,9 +805,12 @@ void renderOscData() {
         }
         turtlePenUp();
         /* render mouse */
-        if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_OSC) {
+        // if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_OSC) {
             if (self.mx > self.windows[0].windowCoords[0] + 15 && self.my > self.windows[0].windowCoords[1] && self.mx < self.windows[0].windowCoords[2] && self.windows[0].windowCoords[3] - self.windows[0].windowTop) {
                 int sample = round((self.mx - self.windows[0].windowCoords[0]) / xquantum);
+                if (self.oscLeftBound + sample >= self.data -> length) {
+                    return;
+                }
                 double sampleX = self.windows[0].windowCoords[0] + sample * xquantum;
                 double sampleY = self.windows[0].windowCoords[1] + ((self.data -> data[self.oscLeftBound + sample].d - self.oscBottomBound) / (self.oscTopBound - self.oscBottomBound)) * (self.windows[0].windowCoords[3] - self.windows[0].windowTop - self.windows[0].windowCoords[1]);
                 turtleRectangle(sampleX - 1, self.windows[0].windowCoords[3] - self.windows[0].windowTop, sampleX + 1, self.windows[0].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
@@ -844,7 +847,7 @@ void renderOscData() {
                 turtlePenColor(0, 0, 0);
                 textGLWriteString(sampleValue, boxX2, self.windows[0].windowCoords[3] - 26, 8, 0);
             }
-        }
+        // }
         /* render side axis */
         turtleRectangle(self.windows[0].windowCoords[0], self.windows[0].windowCoords[1], self.windows[0].windowCoords[0] + 10, self.windows[0].windowCoords[3], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
         turtlePenColor(0, 0, 0);
@@ -935,9 +938,12 @@ void renderFreqData() {
         }
         turtlePenUp();
         /* render mouse */
-        if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_FREQ) {
+        // if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_FREQ) {
             if (self.mx > self.windows[1].windowCoords[0] && self.my > self.windows[1].windowCoords[1] && self.mx < self.windows[1].windowCoords[2] - self.windows[1].windowSide && self.windows[1].windowCoords[3] - self.windows[1].windowTop) {
                 double sample = (self.mx - self.windows[1].windowCoords[0]) / xquantum + self.freqLeftBound;
+                if (self.oscLeftBound + sample >= self.data -> length) {
+                    return;
+                }
                 int roundedSample = round(sample);
                 double sampleX = self.windows[1].windowCoords[0] + (roundedSample - self.freqLeftBound) * xquantum;
                 double sampleY = 9 + self.windows[1].windowCoords[1] + (fabs(self.freqData -> data[roundedSample].d) / (self.topFreq)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]);
@@ -998,7 +1004,7 @@ void renderFreqData() {
                     }
                 }
             }
-        }
+        // }
         /* render bottom axis */
         // turtleRectangle(self.windows[1].windowCoords[0], self.windows[1].windowCoords[1], self.windows[1].windowCoords[2] - self.windows[1].windowSide, self.windows[1].windowCoords[1] + 10, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
         // turtlePenColor(0, 0, 0);
