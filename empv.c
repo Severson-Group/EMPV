@@ -589,17 +589,17 @@ void renderWindow(int window) {
                 }
                 moveSum += self.windows[ilog2(self.windowRender -> data[i].i)].move;
             }
-            if (self.mx > win -> windowCoords[0] && self.mx < win -> windowCoords[2] && self.my > win -> windowCoords[3] - win -> windowTop && self.my < win -> windowCoords[3] && moveSum == 0) {
-                win -> move = -1;
-            } else {
-                win -> move = 0;
-            }
             int clickSum = 0;
             for (int i = self.windowRender -> length - 1; i >= 0; i--) {
                 if (self.windowRender -> data[i].i == pow2(window)) {
                     break;
                 }
                 clickSum += self.windows[ilog2(self.windowRender -> data[i].i)].click;
+            }
+            if (self.mx > win -> windowCoords[0] && self.mx < win -> windowCoords[2] && self.my > win -> windowCoords[3] - win -> windowTop && self.my < win -> windowCoords[3] && moveSum == 0 && clickSum == 0) {
+                win -> move = -1;
+            } else {
+                win -> move = 0;
             }
             if (self.mx > win -> windowCoords[0] && self.mx < win -> windowCoords[2] && self.my > win -> windowCoords[1] && self.my < win -> windowCoords[3] && clickSum == 0) {
                 win -> click = 1;
