@@ -11,6 +11,7 @@ Ethernet documentation: https://learn.microsoft.com/en-us/windows/win32/winsock/
 #include "include/popup.h"
 #include "include/win32tcp.h"
 #include "include/win32Tools.h"
+#include "include/fft.h"
 #include <time.h>
 
 #define DIAL_LINEAR     0
@@ -184,13 +185,13 @@ void init() { // initialises the empv variabes (shared state)
     self.stop = 0;
     self.windows[0].dials = list_init();
     self.windows[0].switches = list_init();
-    list_append(self.windows[0].dials, (unitype) (void *) dialInit("X Scale", &self.oscWindowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[0].windowTop, 8, 1, 1000), 'p');
+    list_append(self.windows[0].dials, (unitype) (void *) dialInit("X Scale", &self.oscWindowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[0].windowTop, 8, 4, 1000), 'p');
     list_append(self.windows[0].dials, (unitype) (void *) dialInit("Y Scale", &self.oscTopBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[0].windowTop, 8, 50, 10000), 'p');
     list_append(self.windows[0].switches, (unitype) (void *) switchInit("Pause", &self.stop, WINDOW_OSC, 1, -100 - self.windows[0].windowTop, 8), 'p');
 
     /* frequency */
     self.freqData = list_init();
-    self.topFreq = 100;
+    self.topFreq = 5000;
     strcpy(self.windows[1].title, "Frequency");
     self.windows[1].windowCoords[0] = 2;
     self.windows[1].windowCoords[1] = 25;
@@ -206,7 +207,7 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[1].resize = 0;
     self.windows[1].dials = list_init();
     self.windows[1].switches = list_init();
-    list_append(self.windows[1].dials, (unitype) (void *) dialInit("Y Scale", &self.topFreq, WINDOW_FREQ, DIAL_EXP, 1, -25 - self.windows[1].windowTop, 8, 50, 10000), 'p');
+    list_append(self.windows[1].dials, (unitype) (void *) dialInit("Y Scale", &self.topFreq, WINDOW_FREQ, DIAL_EXP, 1, -25 - self.windows[1].windowTop, 8, 500, 100000), 'p');
     /* editor */
     strcpy(self.windows[2].title, "Editor");
     self.windows[2].windowCoords[0] = -317;
@@ -251,46 +252,23 @@ double angleBetween(double x1, double y1, double x2, double y2) {
     return output;
 }
 
-list_t *FFT(list_t *samples) {
-    /* format of samples and output is [real1, imag1, real2, imag2, real3, imag3, ...]
-    Algorithm from: https://www.youtube.com/watch?v=htCj9exbGo0
-    */
-    int N = (samples -> length) / 2;
-    if (N <= 1) {
-        list_t *samplesCopy = list_init();
-        list_copy(samplesCopy, samples);
-        return samplesCopy;
+list_t *fft_list_wrapper(list_t *samples) {
+    /* convert to complex */
+    int dimension = samples -> length;
+    complex_t complexSamples[dimension];
+    for (int i = 0; i < dimension; i++) {
+        complexSamples[i].Re = samples -> data[i].d;
+        complexSamples[i].Im = 0.0f;
     }
-    int M = N / 2;
-    list_t *Xeven = list_init();
-    list_t *Xodd = list_init();
-    for (int i = 0; i < M; i++) {
-        list_append(Xeven, samples -> data[i * 4], 'd');
-        list_append(Xeven, samples -> data[i * 4 + 1], 'd');
-        list_append(Xodd, samples -> data[i * 4 + 2], 'd');
-        list_append(Xodd, samples -> data[i * 4 + 3], 'd');
+    complex_t scratch[dimension];
+    fft(complexSamples, dimension, scratch);
+    /* parse */
+    list_t *output = list_init();
+    for (int i = 0; i < dimension; i++) {
+        double fftSample = complexSamples[i].Re;
+        list_append(output, (unitype) fftSample, 'd');
     }
-    list_t *Feven = list_init();
-    list_t *Fodd = list_init();
-    Feven = FFT(Xeven);
-    Fodd = FFT(Xodd);
-    list_t *freqBins = list_init();
-    for (int i = 0; i < N; i++) {
-        list_append(freqBins, (unitype) 0, 'd');
-    }
-    for (int i = 0; i < N / 2; i++) {
-        double subreal = 1.0 * cos(-2 * M_PI * i / N);
-        double subginary = 1.0 * sin(-2 * M_PI * i / N);
-        double real = subreal * Fodd -> data[i * 2].d - subginary * Fodd -> data[i * 2 + 1].d;
-        double imaginary = subreal * Fodd -> data[i * 2 + 1].d + subginary * Fodd -> data[i * 2].d;
-        freqBins -> data[i * 2].d = Feven -> data[i * 2].d + real;
-        freqBins -> data[i * 2 + 1].d = Feven -> data[i * 2 + 1].d + imaginary;
-    }
-    list_free(Feven);
-    list_free(Fodd);
-    list_free(Xeven);
-    list_free(Xodd);
-    return freqBins;
+    return output;
 }
 
 void dialTick(int window) {
@@ -341,22 +319,23 @@ void dialTick(int window) {
                 if (self.my < self.dialAnchorY) {
                     dialp -> status[1] = self.mx - dialX;
                 }
-                if ((dialAngle < 0.0001 || dialAngle > 180) && self.my > self.dialAnchorY && dialp -> status[1] >= 0) {
-                    dialAngle = 0.0001;
+                if ((dialAngle < 0.000001 || dialAngle > 180) && self.my > self.dialAnchorY && dialp -> status[1] >= 0) {
+                    dialAngle = 0.000001;
                 }
-                if ((dialAngle > 359.999 || dialAngle < 180) && self.my > self.dialAnchorY && dialp -> status[1] < 0) {
-                    dialAngle = 359.999;
+                if ((dialAngle > 359.99999 || dialAngle < 180) && self.my > self.dialAnchorY && dialp -> status[1] < 0) {
+                    dialAngle = 359.99999;
                 }
                 if (dialp -> type == DIAL_LOG) {
-                    *(dialp -> variable) =dialp -> range[0] + (dialp -> range[1] - dialp -> range[0]) * (log(dialAngle) / log(360));
+                    *(dialp -> variable) = round(dialp -> range[0] + (dialp -> range[1] - dialp -> range[0]) * (log(dialAngle) / log(360)));
                 } else if (dialp -> type == DIAL_LINEAR) {
-                    *(dialp -> variable) = dialp -> range[0] + ((dialp -> range[1] - dialp -> range[0]) * dialAngle / 360);
+                    *(dialp -> variable) = round(dialp -> range[0] + ((dialp -> range[1] - dialp -> range[0]) * dialAngle / 360));
                 } else if (dialp -> type == DIAL_EXP) {
-                    *(dialp -> variable) = dialp -> range[0] + (dialp -> range[1] - dialp -> range[0]) * ((pow(361, dialAngle / 360) - 1) / 360);
+                    *(dialp -> variable) = round(dialp -> range[0] + (dialp -> range[1] - dialp -> range[0]) * ((pow(361, dialAngle / 360) - 1) / 360));
                 }
             }
             char bubble[24];
-            sprintf(bubble, "%.0lf", *(dialp -> variable));
+            double rounded = round(*(dialp -> variable));
+            sprintf(bubble, "%.0lf", rounded);
             textGLWriteString(bubble, dialX + dialp -> size + 3, dialY, 4, 0);
         }
     }
@@ -674,8 +653,7 @@ void renderOscData() {
         turtlePenColor(0, 0, 0);
         turtleGoto(self.windows[0].windowCoords[0], (self.windows[0].windowCoords[1] - self.windows[0].windowTop + self.windows[0].windowCoords[3]) / 2);
         turtlePenDown();
-        turtleGoto(self.windows[0].windowCoords[2], (self.windows[0].windowCoords[1] - self.windows[0].windowTop + self.windows[0].windowCoords[3]) / 2
-    );
+        turtleGoto(self.windows[0].windowCoords[2], (self.windows[0].windowCoords[1] - self.windows[0].windowTop + self.windows[0].windowCoords[3]) / 2);
         turtlePenUp();
         /* render data */
         turtlePenSize(1);
@@ -776,26 +754,28 @@ void renderFreqData() {
         }
         list_append(self.freqData, (unitype) dataPoint, 'd');
     }
-    // list_print(self.freqData);
-    // list_t *tempData = FFT(self.freqData);
-    // list_print(tempData);
+    list_t *fftData = fft_list_wrapper(self.freqData);
     if (self.windows[1].minimize == 0) {
         /* render window background */
         turtleRectangle(self.windows[1].windowCoords[0], self.windows[1].windowCoords[1], self.windows[1].windowCoords[2], self.windows[1].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         turtlePenSize(1);
         turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
-        double xquantum = (self.windows[1].windowCoords[2] - self.windows[1].windowCoords[0]) / (self.freqData -> length - 1);
-        for (int i = 0; i < self.freqData -> length; i++) {
-            double magnitude = self.freqData -> data[i].d;
+        double xquantum = (self.windows[1].windowCoords[2] - self.windows[1].windowCoords[0]) / (self.freqData -> length - 2) * 2;
+        if (fftData -> length % 2) {
+            xquantum *= (fftData -> length - 2.0) / (fftData -> length - 1.0);
+            // xquantum *= ((1.0 - 2 * fftData -> length) / (2 * fftData -> length)) * -1;
+        }
+        for (int i = 0; i < fftData -> length / 2 + fftData -> length % 2; i++) { // only render the bottom half
+            double magnitude = fftData -> data[i].d;
             if (magnitude < 0) {
-                magnitude = 0;
+                magnitude *= -1;
             }
-            turtleGoto(self.windows[1].windowCoords[0] + i * xquantum, self.windows[1].windowCoords[1] + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]));
+            turtleGoto(self.windows[1].windowCoords[0] + i * xquantum, self.windows[1].windowCoords[1] + 5 + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]));
             turtlePenDown();
         }
         turtlePenUp();
     }
-    // list_free(tempData);
+    list_free(fftData);
 }
 
 void renderEditorData() {
@@ -1023,7 +1003,8 @@ int main(int argc, char *argv[]) {
         start = clock();
         double sinValue1 = sin(tick / 5.0) * 25;
         double sinValue2 = sin(tick / 3.37) * 25;
-        list_append(self.data, (unitype) (sinValue1 + sinValue2), 'd');
+        double sinValue3 = sin(tick * 1.1) * 12.5;
+        list_append(self.data, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
         // list_append(self.data, (unitype) (sinValue2), 'd');
         utilLoop();
         turtleGetMouseCoords(); // get the mouse coordinates (turtle.mouseX, turtle.mouseY)

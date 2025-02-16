@@ -8,3 +8,5 @@ winrel:
 	gcc empv.c -L./Windows -lglfw3 -lopengl32 -lgdi32 -lglad -lole32 -luuid -lwsock32 -DOS_WINDOWS -O3 -o empv.exe
 tcp:
 	gcc testTCP.c -lwsock32 -lWs2_32 -o testTCP.exe
+fft:
+	gcc include/fft.c -o fft.exe

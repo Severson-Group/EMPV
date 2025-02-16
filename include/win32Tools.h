@@ -1,4 +1,6 @@
-/* 
+/*
+Created by Ryan Srichai
+
 a note on COM objects:
 COM objects are C++ classes/structs
 This means that it has methods
