@@ -125,7 +125,7 @@ switch_t *switchInit(char *label, int *variable, int window, double yScale, doub
 
 void init() { // initialises the empv variabes (shared state)
 /* color */
-    double themeCopy[42] = {
+    double themeCopy[48] = {
         /* light theme */
         255, 255, 255, // background color
         195, 195, 195, // window color
@@ -134,6 +134,7 @@ void init() { // initialises the empv variabes (shared state)
         230, 230, 230, // window background color
         0, 144, 20, // switch toggled on color
         255, 0, 0, // switch toggled off color
+        160, 160, 160, // sidebar and bottom bar color
         /* dark theme */
         60, 60, 60, // background color
         10, 10, 10, // window color
@@ -141,7 +142,8 @@ void init() { // initialises the empv variabes (shared state)
         200, 200, 200, // text color
         80, 80, 80, // window background color
         0, 255, 0, // switch toggled on color
-        164, 28, 9 // switch toggled off color
+        164, 28, 9, // switch toggled off color
+        30, 30, 30 // sidebar and bottom bar color
     };
     memcpy(self.themeColors, themeCopy, sizeof(themeCopy));
     self.themeDark = sizeof(themeCopy) / sizeof(double) / 2;
@@ -670,8 +672,8 @@ void renderOscData() {
                 int sample = round((self.mx - self.windows[0].windowCoords[0]) / xquantum);
                 double sampleX = self.windows[0].windowCoords[0] + sample * xquantum;
                 double sampleY = self.windows[0].windowCoords[1] + ((self.data -> data[self.oscLeftBound + sample].d - self.oscBottomBound) / (self.oscTopBound - self.oscBottomBound)) * (self.windows[0].windowCoords[3] - self.windows[0].windowTop - self.windows[0].windowCoords[1]);
-                turtleRectangle(sampleX - 1, self.windows[0].windowCoords[3] - self.windows[0].windowTop, sampleX + 1, self.windows[0].windowCoords[1], 30, 30, 30, 100);
-                turtleRectangle(self.windows[0].windowCoords[0], sampleY - 1, self.windows[0].windowCoords[2], sampleY + 1, 30, 30, 30, 100);
+                turtleRectangle(sampleX - 1, self.windows[0].windowCoords[3] - self.windows[0].windowTop, sampleX + 1, self.windows[0].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+                turtleRectangle(self.windows[0].windowCoords[0], sampleY - 1, self.windows[0].windowCoords[2], sampleY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
                 turtlePenColor(215, 215, 215);
                 turtlePenSize(4);
                 turtleGoto(sampleX, sampleY);
@@ -706,7 +708,7 @@ void renderOscData() {
             }
         }
         /* render side axis */
-        turtleRectangle(self.windows[0].windowCoords[0], self.windows[0].windowCoords[1], self.windows[0].windowCoords[0] + 10, self.windows[0].windowCoords[3], 30, 30, 30, 100);
+        turtleRectangle(self.windows[0].windowCoords[0], self.windows[0].windowCoords[1], self.windows[0].windowCoords[0] + 10, self.windows[0].windowCoords[3], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
         turtlePenColor(0, 0, 0);
         turtlePenSize(1);
         double ycenter = (self.windows[0].windowCoords[1] + self.windows[0].windowCoords[3] - self.windows[0].windowTop) / 2;
@@ -790,89 +792,89 @@ void renderFreqData() {
             turtlePenDown();
         }
         turtlePenUp();
-    }
-    /* render mouse */
-    if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_FREQ) {
-        if (self.mx > self.windows[1].windowCoords[0] && self.my > self.windows[1].windowCoords[1] && self.mx < self.windows[1].windowCoords[2] - self.windows[1].windowSide && self.windows[1].windowCoords[3] - self.windows[1].windowTop) {
-            int sample = round((self.mx - self.windows[1].windowCoords[0]) / xquantum);
-            double sampleX = self.windows[1].windowCoords[0] + sample * xquantum;
-            double sampleY = 9 + self.windows[1].windowCoords[1] + (fabs(self.freqData -> data[sample].d) / (self.topFreq)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]);
-            turtleRectangle(sampleX - 1, self.windows[1].windowCoords[3] - self.windows[1].windowTop, sampleX + 1, self.windows[1].windowCoords[1], 30, 30, 30, 100);
-            turtleRectangle(self.windows[1].windowCoords[0], sampleY - 1, self.windows[1].windowCoords[2] - self.windows[1].windowSide, sampleY + 1, 30, 30, 30, 100);
-            turtlePenColor(215, 215, 215);
-            turtlePenSize(4);
-            turtleGoto(sampleX, sampleY);
-            turtlePenDown();
-            turtlePenUp();
-            char sampleValue[24];
-            /* render side box */
-            sprintf(sampleValue, "%.02lf", fabs(self.freqData -> data[sample].d));
-            double boxLength = textGLGetStringLength(sampleValue, 8);
-            double boxX = self.windows[1].windowCoords[0] + 2;
-            if (sampleX - boxX < 40) {
-                boxX = self.windows[1].windowCoords[2] - self.windows[1].windowSide - boxLength - 5;
+        /* render mouse */
+        if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_FREQ) {
+            if (self.mx > self.windows[1].windowCoords[0] && self.my > self.windows[1].windowCoords[1] && self.mx < self.windows[1].windowCoords[2] - self.windows[1].windowSide && self.windows[1].windowCoords[3] - self.windows[1].windowTop) {
+                int sample = round((self.mx - self.windows[1].windowCoords[0]) / xquantum);
+                double sampleX = self.windows[1].windowCoords[0] + sample * xquantum;
+                double sampleY = 9 + self.windows[1].windowCoords[1] + (fabs(self.freqData -> data[sample].d) / (self.topFreq)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]);
+                turtleRectangle(sampleX - 1, self.windows[1].windowCoords[3] - self.windows[1].windowTop, sampleX + 1, self.windows[1].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+                turtleRectangle(self.windows[1].windowCoords[0], sampleY - 1, self.windows[1].windowCoords[2] - self.windows[1].windowSide, sampleY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+                turtlePenColor(215, 215, 215);
+                turtlePenSize(4);
+                turtleGoto(sampleX, sampleY);
+                turtlePenDown();
+                turtlePenUp();
+                char sampleValue[24];
+                /* render side box */
+                sprintf(sampleValue, "%.02lf", fabs(self.freqData -> data[sample].d));
+                double boxLength = textGLGetStringLength(sampleValue, 8);
+                double boxX = self.windows[1].windowCoords[0] + 2;
+                if (sampleX - boxX < 40) {
+                    boxX = self.windows[1].windowCoords[2] - self.windows[1].windowSide - boxLength - 5;
+                }
+                double boxY = sampleY + 10;
+                turtleRectangle(boxX, boxY - 5, boxX + 4 + boxLength, boxY + 5, 215, 215, 215, 0);
+                turtlePenColor(0, 0, 0);
+                textGLWriteString(sampleValue, boxX + 2, boxY - 1, 8, 0);
+                /* render top box */
+                sprintf(sampleValue, "%d", sample);
+                double boxLength2 = textGLGetStringLength(sampleValue, 8);
+                double boxX2 = sampleX - boxLength2 / 2;
+                if (boxX2 - 15 < self.windows[1].windowCoords[0]) {
+                    boxX2 = self.windows[1].windowCoords[0] + 15;
+                }
+                if (boxX2 + boxLength + self.windows[1].windowSide + 5 > self.windows[1].windowCoords[2]) {
+                    boxX2 = self.windows[1].windowCoords[2] - boxLength2 - self.windows[1].windowSide - 5;
+                }
+                turtleRectangle(boxX2 - 2, self.windows[1].windowCoords[3] - self.windows[1].windowTop - 15, boxX2 + boxLength2 + 2, self.windows[1].windowCoords[3] - self.windows[1].windowTop - 5, 215, 215, 215, 0);
+                turtlePenColor(0, 0, 0);
+                textGLWriteString(sampleValue, boxX2, self.windows[1].windowCoords[3] - 26, 8, 0);
             }
-            double boxY = sampleY + 10;
-            turtleRectangle(boxX, boxY - 5, boxX + 4 + boxLength, boxY + 5, 215, 215, 215, 0);
-            turtlePenColor(0, 0, 0);
-            textGLWriteString(sampleValue, boxX + 2, boxY - 1, 8, 0);
-            /* render top box */
-            sprintf(sampleValue, "%d", sample);
-            double boxLength2 = textGLGetStringLength(sampleValue, 8);
-            double boxX2 = sampleX - boxLength2 / 2;
-            if (boxX2 - 15 < self.windows[1].windowCoords[0]) {
-                boxX2 = self.windows[1].windowCoords[0] + 15;
-            }
-            if (boxX2 + boxLength + self.windows[1].windowSide + 5 > self.windows[1].windowCoords[2]) {
-                boxX2 = self.windows[1].windowCoords[2] - boxLength2 - self.windows[1].windowSide - 5;
-            }
-            turtleRectangle(boxX2 - 2, self.windows[1].windowCoords[3] - self.windows[1].windowTop - 15, boxX2 + boxLength2 + 2, self.windows[1].windowCoords[3] - self.windows[1].windowTop - 5, 215, 215, 215, 0);
-            turtlePenColor(0, 0, 0);
-            textGLWriteString(sampleValue, boxX2, self.windows[1].windowCoords[3] - 26, 8, 0);
         }
-    }
-    /* render bottom axis */
-    turtleRectangle(self.windows[1].windowCoords[0], self.windows[1].windowCoords[1], self.windows[1].windowCoords[2] - self.windows[1].windowSide, self.windows[1].windowCoords[1] + 10, 30, 30, 30, 100);
-    turtlePenColor(0, 0, 0);
-    turtlePenSize(1);
-    double xcenter = (self.windows[1].windowCoords[0] + self.windows[1].windowCoords[2] - self.windows[1].windowSide) / 2;
-    turtleGoto(xcenter, self.windows[1].windowCoords[1]);
-    turtlePenDown();
-    turtleGoto(xcenter, self.windows[1].windowCoords[1] + 5);
-    turtlePenUp();
-    int tickMarks = round(dataLength / 4) * 4;
-    double culling = dataLength;
-    while (culling > 60) {
-        culling /= 4;
-        tickMarks /= 4;
-    }
-    tickMarks = ceil(tickMarks / 4) * 4;
-    double xquantumTick = (self.windows[1].windowCoords[2] - self.windows[1].windowSide - self.windows[1].windowCoords[0]) / tickMarks;
-    for (int i = 1; i < tickMarks; i++) {
-        double xpos = self.windows[1].windowCoords[0] + i * xquantumTick;
-        turtleGoto(xpos, self.windows[1].windowCoords[1]);
+        /* render bottom axis */
+        turtleRectangle(self.windows[1].windowCoords[0], self.windows[1].windowCoords[1], self.windows[1].windowCoords[2] - self.windows[1].windowSide, self.windows[1].windowCoords[1] + 10, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+        turtlePenColor(0, 0, 0);
+        turtlePenSize(1);
+        double xcenter = (self.windows[1].windowCoords[0] + self.windows[1].windowCoords[2] - self.windows[1].windowSide) / 2;
+        turtleGoto(xcenter, self.windows[1].windowCoords[1]);
         turtlePenDown();
-        int tickLength = 2;
-        if (i % (tickMarks / 4) == 0) {
-            tickLength = 4;
-        }
-        turtleGoto(xpos, self.windows[1].windowCoords[1] + tickLength);
+        turtleGoto(xcenter, self.windows[1].windowCoords[1] + 5);
         turtlePenUp();
-    }
-    if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_FREQ) {
-        int mouseSample = round((self.mx - self.windows[1].windowCoords[0]) / xquantumTick);
-        if (mouseSample > 0 && mouseSample < tickMarks) {
-            double xpos = self.windows[1].windowCoords[0] + mouseSample * xquantumTick;
+        int tickMarks = round(dataLength / 4) * 4;
+        double culling = dataLength;
+        while (culling > 60) {
+            culling /= 4;
+            tickMarks /= 4;
+        }
+        tickMarks = ceil(tickMarks / 4) * 4;
+        double xquantumTick = (self.windows[1].windowCoords[2] - self.windows[1].windowSide - self.windows[1].windowCoords[0]) / tickMarks;
+        for (int i = 1; i < tickMarks; i++) {
+            double xpos = self.windows[1].windowCoords[0] + i * xquantumTick;
+            turtleGoto(xpos, self.windows[1].windowCoords[1]);
+            turtlePenDown();
             int tickLength = 2;
-            if (mouseSample % (tickMarks / 4) == 0) {
+            if (i % (tickMarks / 4) == 0) {
                 tickLength = 4;
             }
-            if (self.my > self.windows[1].windowCoords[1] && self.my < self.windows[1].windowCoords[1] + 10) {
-                turtleTriangle(xpos, self.windows[1].windowCoords[1] + tickLength + 2, xpos + 6, self.windows[1].windowCoords[1] + tickLength + 10, xpos - 6, self.windows[1].windowCoords[1] + tickLength + 10, 215, 215, 215, 0);
-                char tickValue[24];
-                sprintf(tickValue, "%d", (int) (dataLength / tickMarks * mouseSample));
-                turtlePenColor(215, 215, 215);
-                textGLWriteString(tickValue, xpos, self.windows[1].windowCoords[1] + tickLength + 18, 8, 50);
+            turtleGoto(xpos, self.windows[1].windowCoords[1] + tickLength);
+            turtlePenUp();
+        }
+        if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_FREQ) {
+            int mouseSample = round((self.mx - self.windows[1].windowCoords[0]) / xquantumTick);
+            if (mouseSample > 0 && mouseSample < tickMarks) {
+                double xpos = self.windows[1].windowCoords[0] + mouseSample * xquantumTick;
+                int tickLength = 2;
+                if (mouseSample % (tickMarks / 4) == 0) {
+                    tickLength = 4;
+                }
+                if (self.my > self.windows[1].windowCoords[1] && self.my < self.windows[1].windowCoords[1] + 10) {
+                    turtleTriangle(xpos, self.windows[1].windowCoords[1] + tickLength + 2, xpos + 6, self.windows[1].windowCoords[1] + tickLength + 10, xpos - 6, self.windows[1].windowCoords[1] + tickLength + 10, 215, 215, 215, 0);
+                    char tickValue[24];
+                    sprintf(tickValue, "%d", (int) (dataLength / tickMarks * mouseSample));
+                    turtlePenColor(215, 215, 215);
+                    textGLWriteString(tickValue, xpos, self.windows[1].windowCoords[1] + tickLength + 18, 8, 50);
+                }
             }
         }
     }
@@ -916,6 +918,7 @@ void renderOrder() {
         } else {
             turtleRectangle(minX, minY, maxX, maxY, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
         }
+        turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
         textGLWriteString(self.windows[i].title, -320 + (50 / 2) + 50 * i, -175, 5, 50);
     }
 }
