@@ -670,24 +670,39 @@ void renderOscData() {
                 int sample = round((self.mx - self.windows[0].windowCoords[0]) / xquantum);
                 double sampleX = self.windows[0].windowCoords[0] + sample * xquantum;
                 double sampleY = self.windows[0].windowCoords[1] + ((self.data -> data[self.oscLeftBound + sample].d - self.oscBottomBound) / (self.oscTopBound - self.oscBottomBound)) * (self.windows[0].windowCoords[3] - self.windows[0].windowTop - self.windows[0].windowCoords[1]);
+                turtleRectangle(sampleX - 1, self.windows[0].windowCoords[3] - self.windows[0].windowTop, sampleX + 1, self.windows[0].windowCoords[1], 30, 30, 30, 100);
+                turtleRectangle(self.windows[0].windowCoords[0], sampleY - 1, self.windows[0].windowCoords[2], sampleY + 1, 30, 30, 30, 100);
                 turtlePenColor(215, 215, 215);
                 turtlePenSize(4);
                 turtleGoto(sampleX, sampleY);
                 turtlePenDown();
                 turtlePenUp();
                 char sampleValue[24];
+                /* render side box */
                 sprintf(sampleValue, "%.02lf", self.data -> data[self.oscLeftBound + sample].d);
                 double boxLength = textGLGetStringLength(sampleValue, 8);
-                double boxX = sampleX - boxLength / 2;
-                if (boxX - 15 < self.windows[0].windowCoords[0]) {
-                    boxX = self.windows[0].windowCoords[0] + 15;
+                double boxX = self.windows[0].windowCoords[0] + 12;
+                if (sampleX - boxX < 40) {
+                    boxX = self.windows[0].windowCoords[2] - self.windows[0].windowSide - boxLength - 5;
                 }
-                if (boxX + boxLength + self.windows[0].windowSide + 5 > self.windows[0].windowCoords[2]) {
-                    boxX = self.windows[0].windowCoords[2] - boxLength - self.windows[0].windowSide - 5;
-                }
-                turtleRectangle(boxX - 2, self.windows[0].windowCoords[3] - self.windows[0].windowTop - 15, boxX + boxLength + 2, self.windows[0].windowCoords[3] - self.windows[0].windowTop - 5, 215, 215, 215, 0);
+                double boxY = sampleY + 10;
+                turtleRectangle(boxX, boxY - 5, boxX + 4 + boxLength, boxY + 5, 215, 215, 215, 0);
                 turtlePenColor(0, 0, 0);
-                textGLWriteString(sampleValue, boxX, self.windows[0].windowCoords[3] - 26, 8, 0);
+                textGLWriteString(sampleValue, boxX + 2, boxY - 1, 8, 0);
+                /* render top box */
+                sprintf(sampleValue, "%d", sample);
+                double boxLength2 = textGLGetStringLength(sampleValue, 8);
+                double boxY2 = sampleY + 10;
+                double boxX2 = sampleX - boxLength2 / 2;
+                if (boxX2 - 15 < self.windows[0].windowCoords[0]) {
+                    boxX2 = self.windows[0].windowCoords[0] + 15;
+                }
+                if (boxX2 + boxLength2 + self.windows[0].windowSide + 5 > self.windows[0].windowCoords[2]) {
+                    boxX2 = self.windows[0].windowCoords[2] - boxLength2 - self.windows[0].windowSide - 5;
+                }
+                turtleRectangle(boxX2 - 2, self.windows[0].windowCoords[3] - self.windows[0].windowTop - 15, boxX2 + boxLength2 + 2, self.windows[0].windowCoords[3] - self.windows[0].windowTop - 5, 215, 215, 215, 0);
+                turtlePenColor(0, 0, 0);
+                textGLWriteString(sampleValue, boxX2, self.windows[0].windowCoords[3] - 26, 8, 0);
             }
         }
         /* render side axis */
@@ -793,7 +808,7 @@ void renderwindowData() {
             /* render side box */
             sprintf(sampleValue, "%.02lf", fabs(self.freqData -> data[sample].d));
             double boxLength = textGLGetStringLength(sampleValue, 8);
-            double boxX = self.windows[1].windowCoords[0] + 5;
+            double boxX = self.windows[1].windowCoords[0] + 2;
             if (sampleX - boxX < 40) {
                 boxX = self.windows[1].windowCoords[2] - self.windows[1].windowSide - boxLength - 5;
             }
