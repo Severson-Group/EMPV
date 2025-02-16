@@ -753,7 +753,7 @@ void renderOscData() {
     }
 }
 
-void renderwindowData() {
+void renderFreqData() {
     (self.windows[1].windowCoords[0], self.windows[1].windowCoords[1], self.windows[1].windowCoords[2], self.windows[1].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
     /* linear windowing function over 10% of the sample */
     int dataLength = self.oscRightBound - self.oscLeftBound;
@@ -796,7 +796,7 @@ void renderwindowData() {
         if (self.mx > self.windows[1].windowCoords[0] && self.my > self.windows[1].windowCoords[1] && self.mx < self.windows[1].windowCoords[2] - self.windows[1].windowSide && self.windows[1].windowCoords[3] - self.windows[1].windowTop) {
             int sample = round((self.mx - self.windows[1].windowCoords[0]) / xquantum);
             double sampleX = self.windows[1].windowCoords[0] + sample * xquantum;
-            double sampleY = 9 + self.windows[1].windowCoords[1] + (fabs(self.freqData -> data[sample].d) / (self.topFreq)) * (self.windows[1].windowCoords[3] - self.windows[0].windowTop - self.windows[0].windowCoords[1]);
+            double sampleY = 9 + self.windows[1].windowCoords[1] + (fabs(self.freqData -> data[sample].d) / (self.topFreq)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]);
             turtleRectangle(sampleX - 1, self.windows[1].windowCoords[3] - self.windows[1].windowTop, sampleX + 1, self.windows[1].windowCoords[1], 30, 30, 30, 100);
             turtleRectangle(self.windows[1].windowCoords[0], sampleY - 1, self.windows[1].windowCoords[2] - self.windows[1].windowSide, sampleY + 1, 30, 30, 30, 100);
             turtlePenColor(215, 215, 215);
@@ -820,8 +820,8 @@ void renderwindowData() {
             sprintf(sampleValue, "%d", sample);
             double boxLength2 = textGLGetStringLength(sampleValue, 8);
             double boxX2 = sampleX - boxLength2 / 2;
-            if (boxX2 - 15 < self.windows[0].windowCoords[0]) {
-                boxX2 = self.windows[0].windowCoords[0] + 15;
+            if (boxX2 - 15 < self.windows[1].windowCoords[0]) {
+                boxX2 = self.windows[1].windowCoords[0] + 15;
             }
             if (boxX2 + boxLength + self.windows[1].windowSide + 5 > self.windows[1].windowCoords[2]) {
                 boxX2 = self.windows[1].windowCoords[2] - boxLength2 - self.windows[1].windowSide - 5;
@@ -892,7 +892,7 @@ void renderOrder() {
             renderOscData();
             break;
         case WINDOW_FREQ:
-            renderwindowData();
+            renderFreqData();
             break;
         case WINDOW_EDITOR:
             renderEditorData();
