@@ -51,6 +51,7 @@ typedef struct { // dropdown
     int status;
     double size;
     double position[2];
+    double maxXfactor;
 } dropdown_t;
 
 typedef struct { // general window attributes
@@ -139,6 +140,16 @@ switch_t *switchInit(char *label, int *variable, int window, double yScale, doub
     return switchp;
 }
 
+void dropdownCalculateMax(dropdown_t *dropdown) {
+    dropdown -> maxXfactor = 0;
+    for (int i = 0; i < dropdown -> options -> length; i++) {
+        double stringLength = textGLGetStringLength(dropdown -> options -> data[i].s, dropdown -> size - 1);
+        if (stringLength > dropdown -> maxXfactor) {
+            dropdown -> maxXfactor = stringLength;
+        }
+    }
+}
+
 dropdown_t *dropdownInit(list_t *options, int window, double yScale, double yOffset, double size) {
     dropdown_t *dropdown = malloc(sizeof(dropdown_t));
     dropdown -> options = options;
@@ -148,6 +159,7 @@ dropdown_t *dropdownInit(list_t *options, int window, double yScale, double yOff
     dropdown -> position[0] = yScale;
     dropdown -> position[1] = yOffset;
     dropdown -> size = size;
+    dropdownCalculateMax(dropdown);
     return dropdown;
 }
 
@@ -186,6 +198,10 @@ void init() { // initialises the empv variabes (shared state)
     /* data */
     self.data = list_init();
     self.logVariables = list_init();
+    list_append(self.logVariables, (unitype) "None", 's');
+    list_append(self.logVariables, (unitype) "LOG_current_a", 's');
+    list_append(self.logVariables, (unitype) "LOG_current_b", 's');
+    list_append(self.logVariables, (unitype) "LOG_current_c", 's');
     self.windowRender = list_init();
     list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
     list_append(self.windowRender, (unitype) WINDOW_OSC, 'i');
@@ -221,6 +237,7 @@ void init() { // initialises the empv variabes (shared state)
     list_append(self.windows[0].dials, (unitype) (void *) dialInit("X Scale", &self.oscWindowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[0].windowTop, 8, 4, 1024), 'p');
     list_append(self.windows[0].dials, (unitype) (void *) dialInit("Y Scale", &self.oscTopBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[0].windowTop, 8, 50, 10000), 'p');
     list_append(self.windows[0].switches, (unitype) (void *) switchInit("Pause", &self.stop, WINDOW_OSC, 1, -100 - self.windows[0].windowTop, 8), 'p');
+    list_append(self.windows[0].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, WINDOW_OSC, 1, -7, 8), 'p');
 
     /* frequency */
     self.windowData = list_init();
@@ -250,7 +267,7 @@ void init() { // initialises the empv variabes (shared state)
     strcpy(self.windows[2].title, "Editor");
     self.windows[2].windowCoords[0] = -317;
     self.windows[2].windowCoords[1] = -121;
-    self.windows[2].windowCoords[2] = -2;
+    self.windows[2].windowCoords[2] = 317;
     self.windows[2].windowCoords[3] = 21;
     self.windows[2].windowTop = 15;
     self.windows[2].windowSide = 0;
@@ -261,7 +278,8 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[2].click = 0;
     self.windows[2].resize = 0;
     self.windows[2].dials = list_init();
-    self.windows[2].switches = list_init();    
+    self.windows[2].switches = list_init();   
+    self.windows[2].dropdowns = list_init();    
 }
 
 int ilog2(int input) {
@@ -312,7 +330,7 @@ void dialTick(int window) {
     for (int i = 0; i < self.windows[window].dials -> length; i++) {
         dial_t *dialp = (dial_t *) (self.windows[window].dials -> data[i].p);
         if ((dialp -> window & windowID) != 0) {
-            textGLWriteString(dialp -> label, (self.windows[window].windowCoords[2] - self.windows[window].windowSide + self.windows[window].windowCoords[2]) / 2, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) * dialp -> position[0] + dialp -> position[1] + 15, 7, 50);
+            textGLWriteString(dialp -> label, (self.windows[window].windowCoords[2] - self.windows[window].windowSide + self.windows[window].windowCoords[2]) / 2, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) * dialp -> position[0] + dialp -> position[1] + 15, dialp -> size - 1, 50);
             turtlePenSize(dialp -> size * 2);
             double dialX = (self.windows[window].windowCoords[2] - self.windows[window].windowSide + self.windows[window].windowCoords[2]) / 2;
             double dialY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) * dialp -> position[0] + dialp -> position[1];
@@ -336,20 +354,22 @@ void dialTick(int window) {
             }
             turtleGoto(dialX + sin(dialAngle / 57.2958) * dialp -> size, dialY + cos(dialAngle / 57.2958) * dialp -> size);
             turtlePenUp();
-            if (self.mouseDown) {
-                if (dialp -> status[0] < 0) {
-                    self.dialAnchorX = dialX;
-                    self.dialAnchorY = dialY;
-                    dialp -> status[0] *= -1;
-                    dialp -> status[1] = self.mx - dialX;
-                }
-            } else {
-                if (self.mx > dialX - dialp -> size && self.mx < dialX + dialp -> size && self.my > dialY - dialp -> size && self.my < dialY + dialp -> size) {
-                    dialp -> status[0] = -1;
+            // if (self.windowRender -> data[self.windowRender -> length - 1].i == windowID) {
+                if (self.mouseDown) {
+                    if (dialp -> status[0] < 0) {
+                        self.dialAnchorX = dialX;
+                        self.dialAnchorY = dialY;
+                        dialp -> status[0] *= -1;
+                        dialp -> status[1] = self.mx - dialX;
+                    }
                 } else {
-                    dialp -> status[0] = 0;
+                    if (self.mx > dialX - dialp -> size && self.mx < dialX + dialp -> size && self.my > dialY - dialp -> size && self.my < dialY + dialp -> size) {
+                        dialp -> status[0] = -1;
+                    } else {
+                        dialp -> status[0] = 0;
+                    }
                 }
-            }
+            // }
             if (dialp -> status[0] > 0) {
                 dialAngle = angleBetween(self.dialAnchorX, self.dialAnchorY, self.mx, self.my);
                 if (self.my < self.dialAnchorY) {
@@ -382,7 +402,7 @@ void switchTick(int window) {
     for (int i = 0; i < self.windows[window].switches -> length; i++) {
         switch_t *switchp = (switch_t *) (self.windows[window].switches -> data[i].p);
         if ((switchp -> window & windowID) != 0) {
-            textGLWriteString(switchp -> label, (self.windows[window].windowCoords[2] - self.windows[window].windowSide + self.windows[window].windowCoords[2]) / 2, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) * switchp -> position[0] + switchp -> position[1] + 15, 7, 50);
+            textGLWriteString(switchp -> label, (self.windows[window].windowCoords[2] - self.windows[window].windowSide + self.windows[window].windowCoords[2]) / 2, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) * switchp -> position[0] + switchp -> position[1] + 15, switchp -> size - 1, 50);
             turtlePenColor(self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14]);
             turtlePenSize(switchp -> size * 1.2);
             double switchX = (self.windows[window].windowCoords[2] - self.windows[window].windowSide + self.windows[window].windowCoords[2]) / 2;
@@ -402,17 +422,19 @@ void switchTick(int window) {
             }
             turtlePenDown();
             turtlePenUp();
-            if (self.mouseDown) {
-                if (switchp -> status < 0) {
-                    switchp -> status *= -1;
-                }
-            } else {
-                if (self.mx > switchX - switchp -> size && self.mx < switchX + switchp -> size && self.my > switchY - switchp -> size && self.my < switchY + switchp -> size) {
-                    switchp -> status = -1;
+            // if (self.windowRender -> data[self.windowRender -> length - 1].i == windowID) {
+                if (self.mouseDown) {
+                    if (switchp -> status < 0) {
+                        switchp -> status *= -1;
+                    }
                 } else {
-                    switchp -> status = 0;
+                    if (self.mx > switchX - switchp -> size && self.mx < switchX + switchp -> size && self.my > switchY - switchp -> size && self.my < switchY + switchp -> size) {
+                        switchp -> status = -1;
+                    } else {
+                        switchp -> status = 0;
+                    }
                 }
-            }
+            // }
             if (switchp -> status > 0) {
                 if (*(switchp -> variable)) {
                     *(switchp -> variable) = 0;
@@ -420,6 +442,87 @@ void switchTick(int window) {
                     *(switchp -> variable) = 1;
                 }
                 switchp -> status = 0;
+            }
+        }
+    }
+}
+
+void dropdownTick(int window) {
+    int windowID = pow2(window);
+    for (int i = 0; i < self.windows[window].dropdowns -> length; i++) {
+        dropdown_t *dropdown = (dropdown_t *) (self.windows[window].dropdowns -> data[i].p);
+        if ((dropdown -> window & windowID) != 0) {
+            double dropdownX = (self.windows[window].windowCoords[2] - self.windows[window].windowSide + self.windows[window].windowCoords[2]) / 2;
+            double dropdownY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) * dropdown -> position[0] + dropdown -> position[1];
+            double xfactor = textGLGetStringLength(dropdown -> options -> data[dropdown -> index].s, dropdown -> size - 1);
+            double itemHeight = (dropdown -> size * 1.5);
+            if (dropdown -> status == -1) {
+                turtleRectangle(dropdownX - dropdown -> size - xfactor, dropdownY - dropdown -> size * 0.7, dropdownX + dropdown -> size + 10, dropdownY + dropdown -> size * 0.7, self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+            } else if (dropdown -> status >= 1) {
+                turtleRectangle(dropdownX - dropdown -> size - dropdown -> maxXfactor, dropdownY - dropdown -> size * 0.7 - (dropdown -> options -> length - 1) * itemHeight, dropdownX + dropdown -> size + 10, dropdownY + dropdown -> size * 0.7, self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+            } else {
+                turtleRectangle(dropdownX - dropdown -> size - xfactor, dropdownY - dropdown -> size * 0.7, dropdownX + dropdown -> size + 10, dropdownY + dropdown -> size * 0.7, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 0);
+            }
+            if (self.windowRender -> data[self.windowRender -> length - 1].i == windowID) {
+                if (self.mx > dropdownX - dropdown -> size - xfactor && self.mx < dropdownX + dropdown -> size + 10 && self.my > dropdownY - dropdown -> size * 0.7 && self.my < dropdownY + dropdown -> size * 0.7) {
+                    if (dropdown -> status == 0) {
+                        dropdown -> status = -1;
+                    }
+                } else {
+                    if (dropdown -> status == -1) {
+                        dropdown -> status = 0;
+                    }
+                }
+                if (dropdown -> status == -1) {
+                    if (self.mouseDown) {
+                        dropdown -> status = 1;
+                    }
+                }
+                if (dropdown -> status == 1) {
+                    if (!self.mouseDown) {
+                        dropdown -> status = 2;
+                    }
+                }
+                if (dropdown -> status == -2) {
+                    if (!self.mouseDown) {
+                        dropdown -> status = 0;
+                    }
+                }
+            }
+            if (dropdown -> status == 2 || dropdown -> status == 1) {
+                if (self.mx > dropdownX - dropdown -> size - dropdown -> maxXfactor && self.mx < dropdownX + dropdown -> size + 10 && self.my > dropdownY - dropdown -> size * 0.7 - (dropdown -> options -> length - 1) * itemHeight && self.my < dropdownY + dropdown -> size * 0.7) {
+                    int selected = round((dropdownY - self.my) / itemHeight);
+                    turtleRectangle(dropdownX - dropdown -> size - dropdown -> maxXfactor, dropdownY - dropdown -> size * 0.7 - selected * itemHeight, dropdownX + dropdown -> size + 10, dropdownY + dropdown -> size * 0.7 - selected * itemHeight, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 0);
+                    if (self.mouseDown && dropdown -> status == 2) {
+                        if (selected != 0) {
+                            if (dropdown -> index >= selected) {
+                                dropdown -> index = selected - 1;
+                            } else {
+                                dropdown -> index = selected;
+                            }
+                        }
+                        dropdown -> status = -2;
+                    }
+                } else {
+                    if (self.mouseDown) {
+                        dropdown -> status = 0;
+                    }
+                }
+                turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+                int renderIndex = 1;
+                for (int i = 0; i < dropdown -> options -> length; i++) {
+                    if (i != dropdown -> index) {
+                        textGLWriteString(dropdown -> options -> data[i].s, (self.windows[window].windowCoords[2] - self.windows[window].windowSide + self.windows[window].windowCoords[2]) / 2, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) * dropdown -> position[0] + dropdown -> position[1] - renderIndex * itemHeight, dropdown -> size - 1, 100);
+                        renderIndex++;
+                    }
+                }
+            }
+            turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+            textGLWriteString(dropdown -> options -> data[dropdown -> index].s, (self.windows[window].windowCoords[2] - self.windows[window].windowSide + self.windows[window].windowCoords[2]) / 2, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) * dropdown -> position[0] + dropdown -> position[1], dropdown -> size - 1, 100);
+            if (dropdown -> status >= 1) {
+                turtleTriangle(dropdownX + 11, dropdownY + 4, dropdownX + 11, dropdownY - 4, dropdownX + 5, dropdownY, self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11], 0);
+            } else {
+                turtleTriangle(dropdownX + 13, dropdownY + 3, dropdownX + 5, dropdownY + 3, dropdownX + 9, dropdownY - 3, self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11], 0);
             }
         }
     }
@@ -446,6 +549,7 @@ void renderWindow(int window) {
         /* draw sidebar UI elements */
         dialTick(window);
         switchTick(window);
+        dropdownTick(window);
     }
     /* window move and resize logic */
     /* move */
