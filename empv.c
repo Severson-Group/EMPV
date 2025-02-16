@@ -87,7 +87,8 @@ typedef struct { // all the empv shared state is here
         double oscWindowSize; // size of window (index in data list)
         int stop; // pause and unpause
     /* frequency view */
-        list_t *freqData;
+        list_t *windowData; // segment of normal data through windowing function
+        list_t *freqData; // frequency data
         double topFreq; // top bound (y value)
     /* editor view */
         double editorBottomBound;
@@ -185,11 +186,12 @@ void init() { // initialises the empv variabes (shared state)
     self.stop = 0;
     self.windows[0].dials = list_init();
     self.windows[0].switches = list_init();
-    list_append(self.windows[0].dials, (unitype) (void *) dialInit("X Scale", &self.oscWindowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[0].windowTop, 8, 4, 1000), 'p');
+    list_append(self.windows[0].dials, (unitype) (void *) dialInit("X Scale", &self.oscWindowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[0].windowTop, 8, 4, 1024), 'p');
     list_append(self.windows[0].dials, (unitype) (void *) dialInit("Y Scale", &self.oscTopBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[0].windowTop, 8, 50, 10000), 'p');
     list_append(self.windows[0].switches, (unitype) (void *) switchInit("Pause", &self.stop, WINDOW_OSC, 1, -100 - self.windows[0].windowTop, 8), 'p');
 
     /* frequency */
+    self.windowData = list_init();
     self.freqData = list_init();
     self.topFreq = 5000;
     strcpy(self.windows[1].title, "Frequency");
@@ -252,7 +254,7 @@ double angleBetween(double x1, double y1, double x2, double y2) {
     return output;
 }
 
-list_t *fft_list_wrapper(list_t *samples) {
+void fft_list_wrapper(list_t *samples, list_t *output) {
     /* convert to complex */
     int dimension = samples -> length;
     complex_t complexSamples[dimension];
@@ -263,12 +265,10 @@ list_t *fft_list_wrapper(list_t *samples) {
     complex_t scratch[dimension];
     fft(complexSamples, dimension, scratch);
     /* parse */
-    list_t *output = list_init();
     for (int i = 0; i < dimension; i++) {
         double fftSample = complexSamples[i].Re;
         list_append(output, (unitype) fftSample, 'd');
     }
-    return output;
 }
 
 void dialTick(int window) {
@@ -685,7 +685,7 @@ void renderOscData() {
                 if (boxX + boxLength + self.windows[0].windowSide + 5 > self.windows[0].windowCoords[2]) {
                     boxX = self.windows[0].windowCoords[2] - boxLength - self.windows[0].windowSide - 5;
                 }
-                turtleRectangle(boxX - 3, self.windows[0].windowCoords[3] - self.windows[0].windowTop - 15, boxX + boxLength + 3, self.windows[0].windowCoords[3] - self.windows[0].windowTop - 5, 215, 215, 215, 0);
+                turtleRectangle(boxX - 2, self.windows[0].windowCoords[3] - self.windows[0].windowTop - 15, boxX + boxLength + 2, self.windows[0].windowCoords[3] - self.windows[0].windowTop - 5, 215, 215, 215, 0);
                 turtlePenColor(0, 0, 0);
                 textGLWriteString(sampleValue, boxX, self.windows[0].windowCoords[3] - 26, 8, 0);
             }
@@ -738,44 +738,129 @@ void renderOscData() {
     }
 }
 
-void renderFreqData() {
+void renderwindowData() {
     (self.windows[1].windowCoords[0], self.windows[1].windowCoords[1], self.windows[1].windowCoords[2], self.windows[1].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
     /* linear windowing function over 10% of the sample */
-    int threshold = (self.oscRightBound - self.oscLeftBound) * 0.1;
+    int dataLength = self.oscRightBound - self.oscLeftBound;
+    int threshold = (dataLength) * 0.1;
     double damping = 1.0 / threshold;
-    list_clear(self.freqData);
-    for (int i = 0; i < self.oscRightBound - self.oscLeftBound; i++) {
+    list_clear(self.windowData);
+    for (int i = 0; i < dataLength; i++) {
         double dataPoint = self.data -> data[i + self.oscLeftBound].d;
         if (i < threshold) {
             dataPoint *= damping * (i + 1);
         }
-        if (i >= (self.oscRightBound - self.oscLeftBound) - threshold) {
-            dataPoint *= damping * ((self.oscRightBound - self.oscLeftBound) - (i - 1));
+        if (i >= (dataLength) - threshold) {
+            dataPoint *= damping * ((dataLength) - (i - 1));
         }
-        list_append(self.freqData, (unitype) dataPoint, 'd');
+        list_append(self.windowData, (unitype) dataPoint, 'd');
     }
-    list_t *fftData = fft_list_wrapper(self.freqData);
+    list_clear(self.freqData);
+    fft_list_wrapper(self.windowData, self.freqData);
+    double xquantum = (self.windows[1].windowCoords[2] - self.windows[1].windowCoords[0] - self.windows[1].windowSide) / (self.windowData -> length - 2) * 2;
     if (self.windows[1].minimize == 0) {
         /* render window background */
         turtleRectangle(self.windows[1].windowCoords[0], self.windows[1].windowCoords[1], self.windows[1].windowCoords[2], self.windows[1].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         turtlePenSize(1);
         turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
-        double xquantum = (self.windows[1].windowCoords[2] - self.windows[1].windowCoords[0]) / (self.freqData -> length - 2) * 2;
-        if (fftData -> length % 2) {
-            xquantum *= (fftData -> length - 2.0) / (fftData -> length - 1.0);
-            // xquantum *= ((1.0 - 2 * fftData -> length) / (2 * fftData -> length)) * -1;
+        if (self.freqData -> length % 2) {
+            xquantum *= (self.freqData -> length - 2.0) / (self.freqData -> length - 1.0);
         }
-        for (int i = 0; i < fftData -> length / 2 + fftData -> length % 2; i++) { // only render the bottom half
-            double magnitude = fftData -> data[i].d;
+        for (int i = 0; i < self.freqData -> length / 2 + self.freqData -> length % 2; i++) { // only render the bottom half of frequency graph
+            double magnitude = self.freqData -> data[i].d;
             if (magnitude < 0) {
                 magnitude *= -1;
             }
-            turtleGoto(self.windows[1].windowCoords[0] + i * xquantum, self.windows[1].windowCoords[1] + 5 + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]));
+            turtleGoto(self.windows[1].windowCoords[0] + i * xquantum, self.windows[1].windowCoords[1] + 9 + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]));
             turtlePenDown();
         }
         turtlePenUp();
     }
-    list_free(fftData);
+    /* render mouse */
+    if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_FREQ) {
+        if (self.mx > self.windows[1].windowCoords[0] && self.my > self.windows[1].windowCoords[1] && self.mx < self.windows[1].windowCoords[2] - self.windows[1].windowSide && self.windows[1].windowCoords[3] - self.windows[1].windowTop) {
+            int sample = round((self.mx - self.windows[1].windowCoords[0]) / xquantum);
+            double sampleX = self.windows[1].windowCoords[0] + sample * xquantum;
+            double sampleY = 9 + self.windows[1].windowCoords[1] + (fabs(self.freqData -> data[sample].d) / (self.topFreq)) * (self.windows[1].windowCoords[3] - self.windows[0].windowTop - self.windows[0].windowCoords[1]);
+            turtleRectangle(sampleX - 1, self.windows[1].windowCoords[3] - self.windows[1].windowTop, sampleX + 1, self.windows[1].windowCoords[1], 30, 30, 30, 100);
+            turtleRectangle(self.windows[1].windowCoords[0], sampleY - 1, self.windows[1].windowCoords[2] - self.windows[1].windowSide, sampleY + 1, 30, 30, 30, 100);
+            turtlePenColor(215, 215, 215);
+            turtlePenSize(4);
+            turtleGoto(sampleX, sampleY);
+            turtlePenDown();
+            turtlePenUp();
+            char sampleValue[24];
+            /* render side box */
+            sprintf(sampleValue, "%.02lf", fabs(self.freqData -> data[sample].d));
+            double boxLength = textGLGetStringLength(sampleValue, 8);
+            double boxX = self.windows[1].windowCoords[0] + 5;
+            if (sampleX - boxX < 40) {
+                boxX = self.windows[1].windowCoords[2] - self.windows[1].windowSide - boxLength - 5;
+            }
+            double boxY = sampleY + 10;
+            turtleRectangle(boxX, boxY - 5, boxX + 4 + boxLength, boxY + 5, 215, 215, 215, 0);
+            turtlePenColor(0, 0, 0);
+            textGLWriteString(sampleValue, boxX + 2, boxY - 1, 8, 0);
+            /* render top box */
+            sprintf(sampleValue, "%d", sample);
+            double boxLength2 = textGLGetStringLength(sampleValue, 8);
+            double boxX2 = sampleX - boxLength2 / 2;
+            if (boxX2 - 15 < self.windows[0].windowCoords[0]) {
+                boxX2 = self.windows[0].windowCoords[0] + 15;
+            }
+            if (boxX2 + boxLength + self.windows[1].windowSide + 5 > self.windows[1].windowCoords[2]) {
+                boxX2 = self.windows[1].windowCoords[2] - boxLength2 - self.windows[1].windowSide - 5;
+            }
+            turtleRectangle(boxX2 - 2, self.windows[1].windowCoords[3] - self.windows[1].windowTop - 15, boxX2 + boxLength2 + 2, self.windows[1].windowCoords[3] - self.windows[1].windowTop - 5, 215, 215, 215, 0);
+            turtlePenColor(0, 0, 0);
+            textGLWriteString(sampleValue, boxX2, self.windows[1].windowCoords[3] - 26, 8, 0);
+        }
+    }
+    /* render bottom axis */
+    turtleRectangle(self.windows[1].windowCoords[0], self.windows[1].windowCoords[1], self.windows[1].windowCoords[2] - self.windows[1].windowSide, self.windows[1].windowCoords[1] + 10, 30, 30, 30, 100);
+    turtlePenColor(0, 0, 0);
+    turtlePenSize(1);
+    double xcenter = (self.windows[1].windowCoords[0] + self.windows[1].windowCoords[2] - self.windows[1].windowSide) / 2;
+    turtleGoto(xcenter, self.windows[1].windowCoords[1]);
+    turtlePenDown();
+    turtleGoto(xcenter, self.windows[1].windowCoords[1] + 5);
+    turtlePenUp();
+    int tickMarks = round(dataLength / 4) * 4;
+    double culling = dataLength;
+    while (culling > 60) {
+        culling /= 4;
+        tickMarks /= 4;
+    }
+    tickMarks = ceil(tickMarks / 4) * 4;
+    double xquantumTick = (self.windows[1].windowCoords[2] - self.windows[1].windowSide - self.windows[1].windowCoords[0]) / tickMarks;
+    for (int i = 1; i < tickMarks; i++) {
+        double xpos = self.windows[1].windowCoords[0] + i * xquantumTick;
+        turtleGoto(xpos, self.windows[1].windowCoords[1]);
+        turtlePenDown();
+        int tickLength = 2;
+        if (i % (tickMarks / 4) == 0) {
+            tickLength = 4;
+        }
+        turtleGoto(xpos, self.windows[1].windowCoords[1] + tickLength);
+        turtlePenUp();
+    }
+    if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_FREQ) {
+        int mouseSample = round((self.mx - self.windows[1].windowCoords[0]) / xquantumTick);
+        if (mouseSample > 0 && mouseSample < tickMarks) {
+            double xpos = self.windows[1].windowCoords[0] + mouseSample * xquantumTick;
+            int tickLength = 2;
+            if (mouseSample % (tickMarks / 4) == 0) {
+                tickLength = 4;
+            }
+            if (self.my > self.windows[1].windowCoords[1] && self.my < self.windows[1].windowCoords[1] + 10) {
+                turtleTriangle(xpos, self.windows[1].windowCoords[1] + tickLength + 2, xpos + 6, self.windows[1].windowCoords[1] + tickLength + 10, xpos - 6, self.windows[1].windowCoords[1] + tickLength + 10, 215, 215, 215, 0);
+                char tickValue[24];
+                sprintf(tickValue, "%d", (int) (dataLength / tickMarks * mouseSample));
+                turtlePenColor(215, 215, 215);
+                textGLWriteString(tickValue, xpos, self.windows[1].windowCoords[1] + tickLength + 18, 8, 50);
+            }
+        }
+    }
 }
 
 void renderEditorData() {
@@ -792,7 +877,7 @@ void renderOrder() {
             renderOscData();
             break;
         case WINDOW_FREQ:
-            renderFreqData();
+            renderwindowData();
             break;
         case WINDOW_EDITOR:
             renderEditorData();
