@@ -964,10 +964,10 @@ void renderFreqData() {
                 sprintf(sampleValue, "%.1lfHz", sample / (dataLength / self.oscSamplesPerSecond));
                 double boxLength2 = textGLGetStringLength(sampleValue, 8);
                 double boxX2 = sampleX - boxLength2 / 2;
-                if (boxX2 - 15 < self.windows[1].windowCoords[0]) {
-                    boxX2 = self.windows[1].windowCoords[0] + 15;
+                if (boxX2 - 5 < self.windows[1].windowCoords[0]) {
+                    boxX2 = self.windows[1].windowCoords[0] + 5;
                 }
-                if (boxX2 + boxLength + self.windows[1].windowSide + 5 > self.windows[1].windowCoords[2]) {
+                if (boxX2 + boxLength2 + self.windows[1].windowSide + 5 > self.windows[1].windowCoords[2]) {
                     boxX2 = self.windows[1].windowCoords[2] - boxLength2 - self.windows[1].windowSide - 5;
                 }
                 turtleRectangle(boxX2 - 2, self.windows[1].windowCoords[3] - self.windows[1].windowTop - 15, boxX2 + boxLength2 + 2, self.windows[1].windowCoords[3] - self.windows[1].windowTop - 5, 215, 215, 215, 0);
