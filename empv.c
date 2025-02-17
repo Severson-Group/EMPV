@@ -18,11 +18,11 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 #define DIAL_LOG        1
 #define DIAL_EXP        2
 
-#define NUM_WINDOWS     3
+#define NUM_WINDOWS     14
 
-#define WINDOW_OSC      1
-#define WINDOW_FREQ     2
-#define WINDOW_EDITOR   4
+#define WINDOW_FREQ     1
+#define WINDOW_EDITOR   2
+#define WINDOW_OSC      4
 
 typedef struct { // dial
     char label[24];
@@ -70,6 +70,17 @@ typedef struct { // general window attributes
     list_t *dropdowns;
 } window_t;
 
+typedef struct { // oscilloscope view
+    int dataIndex;
+    int leftBound; // left bound (index in data list)
+    int rightBound; // right bound (index in data list)
+    double bottomBound; // bottom bound (y value)
+    double topBound; // top bound (y value)
+    double windowSize; // size of window (index in data list)
+    double samplesPerSecond; // samples per second for logged variables
+    int stop; // pause and unpause
+} oscilloscope_t;
+
 typedef struct { // all the empv shared state is here
     /* general */
         list_t *data; // a list of all data collected through ethernet
@@ -91,17 +102,11 @@ typedef struct { // all the empv shared state is here
         int themeDark;
         double themeColors[90];
     /* oscilloscope view */
-        int oscDataIndex;
-        int oscLeftBound; // left bound (index in data list)
-        int oscRightBound; // right bound (index in data list)
-        double oscBottomBound; // bottom bound (y value)
-        double oscTopBound; // top bound (y value)
-        double oscWindowSize; // size of window (index in data list)
-        double oscSamplesPerSecond; // samples per second for logged variables
-        int stop; // pause and unpause
+        oscilloscope_t osc[12]; // up to 12 oscilloscopes
     /* frequency view */
         list_t *windowData; // segment of normal data through windowing function
         list_t *freqData; // frequency data
+        int freqOscIndex; // referenced oscilloscope
         int freqLeftBound;
         int freqRightBound;
         double freqZoom;
@@ -114,6 +119,7 @@ typedef struct { // all the empv shared state is here
 
 empv_t self; // global state
 
+/* initialise UI elements */
 dial_t *dialInit(char *label, double *variable, int window, int type, double yScale, double yOffset, double size, double bottom, double top) {
     dial_t *dial = malloc(sizeof(dial_t));
     memcpy(dial -> label, label, strlen(label) + 1);
@@ -164,6 +170,51 @@ dropdown_t *dropdownInit(list_t *options, int window, double yScale, double yOff
     return dropdown;
 }
 
+/* math functions*/
+int ilog2(int input) {
+    return (int) lround(log2(input));
+}
+
+int pow2(int input) {
+    int output = 1;
+    while (input > 0) {
+        output <<= 1;
+        input--;
+    }
+    return output;
+}
+
+double angleBetween(double x1, double y1, double x2, double y2) {
+    double output;
+    if (y2 - y1 < 0) {
+        output = 180 + atan((x2 - x1) / (y2 - y1)) * 57.2958;
+    } else {
+        output = atan((x2 - x1) / (y2 - y1)) * 57.2958;
+    }
+    if (output < 0) {
+        output += 360;
+    }
+    return output;
+}
+
+void fft_list_wrapper(list_t *samples, list_t *output) {
+    /* convert to complex */
+    int dimension = samples -> length;
+    complex_t complexSamples[dimension];
+    for (int i = 0; i < dimension; i++) {
+        complexSamples[i].Re = samples -> data[i].d;
+        complexSamples[i].Im = 0.0f;
+    }
+    complex_t scratch[dimension];
+    fft(complexSamples, dimension, scratch);
+    /* parse */
+    for (int i = 0; i < dimension; i++) {
+        double fftSample = complexSamples[i].Re;
+        list_append(output, (unitype) fftSample, 'd');
+    }
+}
+
+/* initialise global state */
 void init() { // initialises the empv variabes (shared state)
 /* color */
     double themeCopy[48] = {
@@ -215,121 +266,83 @@ void init() { // initialises the empv variabes (shared state)
     self.dialAnchorX = 0;
     self.dialAnchorY = 0;
     /* osc */
-    self.oscDataIndex = 0;
-    self.oscLeftBound = 0;
-    self.oscRightBound = 0;
-    self.oscBottomBound = -100;
-    self.oscTopBound = 100;
-    self.oscWindowSize = 200;
-    self.oscSamplesPerSecond = 120;
-    strcpy(self.windows[0].title, "Oscilloscope");
-    self.windows[0].windowCoords[0] = -317;
-    self.windows[0].windowCoords[1] = 25;
-    self.windows[0].windowCoords[2] = -2;
-    self.windows[0].windowCoords[3] = 167;
-    self.windows[0].windowTop = 15;
-    self.windows[0].windowSide = 50;
-    self.windows[0].windowMinX = 60 + self.windows[0].windowSide;
-    self.windows[0].windowMinY = 120 + self.windows[0].windowTop;
-    self.windows[0].minimize = 0;
-    self.windows[0].move = 0;
-    self.windows[0].click = 0;
-    self.windows[0].resize = 0;
-    self.stop = 0;
-    self.windows[0].dials = list_init();
-    self.windows[0].switches = list_init();
-    self.windows[0].dropdowns = list_init();
-    list_append(self.windows[0].dials, (unitype) (void *) dialInit("X Scale", &self.oscWindowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[0].windowTop, 8, 4, 1024), 'p');
-    list_append(self.windows[0].dials, (unitype) (void *) dialInit("Y Scale", &self.oscTopBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[0].windowTop, 8, 50, 10000), 'p');
-    list_append(self.windows[0].switches, (unitype) (void *) switchInit("Pause", &self.stop, WINDOW_OSC, 1, -100 - self.windows[0].windowTop, 8), 'p');
-    list_append(self.windows[0].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, WINDOW_OSC, 1, -7, 8), 'p');
+    self.osc[0].dataIndex = 0;
+    self.osc[0].leftBound = 0;
+    self.osc[0].rightBound = 0;
+    self.osc[0].bottomBound = -100;
+    self.osc[0].topBound = 100;
+    self.osc[0].windowSize = 200;
+    self.osc[0].samplesPerSecond = 120;
+    self.osc[0].stop = 0;
+    int oscIndex = ilog2(WINDOW_OSC);
+    strcpy(self.windows[oscIndex].title, "Oscilloscope");
+    self.windows[oscIndex].windowCoords[0] = -317;
+    self.windows[oscIndex].windowCoords[1] = 25;
+    self.windows[oscIndex].windowCoords[2] = -2;
+    self.windows[oscIndex].windowCoords[3] = 167;
+    self.windows[oscIndex].windowTop = 15;
+    self.windows[oscIndex].windowSide = 50;
+    self.windows[oscIndex].windowMinX = 60 + self.windows[oscIndex].windowSide;
+    self.windows[oscIndex].windowMinY = 120 + self.windows[oscIndex].windowTop;
+    self.windows[oscIndex].minimize = 0;
+    self.windows[oscIndex].move = 0;
+    self.windows[oscIndex].click = 0;
+    self.windows[oscIndex].resize = 0;
+    self.windows[oscIndex].dials = list_init();
+    self.windows[oscIndex].switches = list_init();
+    self.windows[oscIndex].dropdowns = list_init();
+    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("X Scale", &self.osc[0].windowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[oscIndex].windowTop, 8, 4, 1024), 'p');
+    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[0].topBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[oscIndex].windowTop, 8, 50, 10000), 'p');
+    list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Pause", &self.osc[0].stop, WINDOW_OSC, 1, -100 - self.windows[oscIndex].windowTop, 8), 'p');
+    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, WINDOW_OSC, 1, -7, 8), 'p');
 
     /* frequency */
     self.windowData = list_init();
     self.freqData = list_init();
+    self.freqOscIndex = 0;
     self.freqLeftBound = 0;
     self.freqRightBound = 0;
     self.freqZoom = 1.0;
     self.topFreq = 5000;
-    strcpy(self.windows[1].title, "Frequency");
-    self.windows[1].windowCoords[0] = 2;
-    self.windows[1].windowCoords[1] = 25;
-    self.windows[1].windowCoords[2] = 317;
-    self.windows[1].windowCoords[3] = 167;
-    self.windows[1].windowTop = 15;
-    self.windows[1].windowSide = 50;
-    self.windows[1].windowMinX = 52 + self.windows[1].windowSide;
-    self.windows[1].windowMinY = 120 + self.windows[1].windowTop;
-    self.windows[1].minimize = 0;
-    self.windows[1].move = 0;
-    self.windows[1].click = 0;
-    self.windows[1].resize = 0;
-    self.windows[1].dials = list_init();
-    self.windows[1].switches = list_init();
-    self.windows[1].dropdowns = list_init();
-    list_append(self.windows[1].dials, (unitype) (void *) dialInit("Y Scale", &self.topFreq, WINDOW_FREQ, DIAL_EXP, 1, -25 - self.windows[1].windowTop, 8, 500, 100000), 'p');
+    int freqIndex = ilog2(WINDOW_FREQ);
+    strcpy(self.windows[freqIndex].title, "Frequency");
+    self.windows[freqIndex].windowCoords[0] = 2;
+    self.windows[freqIndex].windowCoords[1] = 25;
+    self.windows[freqIndex].windowCoords[2] = 317;
+    self.windows[freqIndex].windowCoords[3] = 167;
+    self.windows[freqIndex].windowTop = 15;
+    self.windows[freqIndex].windowSide = 50;
+    self.windows[freqIndex].windowMinX = 52 + self.windows[freqIndex].windowSide;
+    self.windows[freqIndex].windowMinY = 120 + self.windows[freqIndex].windowTop;
+    self.windows[freqIndex].minimize = 0;
+    self.windows[freqIndex].move = 0;
+    self.windows[freqIndex].click = 0;
+    self.windows[freqIndex].resize = 0;
+    self.windows[freqIndex].dials = list_init();
+    self.windows[freqIndex].switches = list_init();
+    self.windows[freqIndex].dropdowns = list_init();
+    list_append(self.windows[freqIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.topFreq, WINDOW_FREQ, DIAL_EXP, 1, -25 - self.windows[freqIndex].windowTop, 8, 500, 100000), 'p');
     /* editor */
-    strcpy(self.windows[2].title, "Editor");
-    self.windows[2].windowCoords[0] = -317;
-    self.windows[2].windowCoords[1] = -121;
-    self.windows[2].windowCoords[2] = 317;
-    self.windows[2].windowCoords[3] = 21;
-    self.windows[2].windowTop = 15;
-    self.windows[2].windowSide = 0;
-    self.windows[2].windowMinX = 60 + self.windows[2].windowSide;
-    self.windows[2].windowMinY = 120 + self.windows[2].windowTop;
-    self.windows[2].minimize = 0;
-    self.windows[2].move = 0;
-    self.windows[2].click = 0;
-    self.windows[2].resize = 0;
-    self.windows[2].dials = list_init();
-    self.windows[2].switches = list_init();   
-    self.windows[2].dropdowns = list_init();    
+    int editorIndex = ilog2(WINDOW_EDITOR);
+    strcpy(self.windows[editorIndex].title, "Editor");
+    self.windows[editorIndex].windowCoords[0] = -317;
+    self.windows[editorIndex].windowCoords[1] = -121;
+    self.windows[editorIndex].windowCoords[2] = 317;
+    self.windows[editorIndex].windowCoords[3] = 21;
+    self.windows[editorIndex].windowTop = 15;
+    self.windows[editorIndex].windowSide = 0;
+    self.windows[editorIndex].windowMinX = 60 + self.windows[editorIndex].windowSide;
+    self.windows[editorIndex].windowMinY = 120 + self.windows[editorIndex].windowTop;
+    self.windows[editorIndex].minimize = 0;
+    self.windows[editorIndex].move = 0;
+    self.windows[editorIndex].click = 0;
+    self.windows[editorIndex].resize = 0;
+    self.windows[editorIndex].dials = list_init();
+    self.windows[editorIndex].switches = list_init();   
+    self.windows[editorIndex].dropdowns = list_init();    
 }
 
-int ilog2(int input) {
-	return (int) lround(log2(input));
-}
-
-int pow2(int input) {
-	int output = 1;
-	while (input > 0) {
-		output <<= 1;
-		input--;
-	}
-	return output;
-}
-
-double angleBetween(double x1, double y1, double x2, double y2) {
-    double output;
-    if (y2 - y1 < 0) {
-        output = 180 + atan((x2 - x1) / (y2 - y1)) * 57.2958;
-    } else {
-        output = atan((x2 - x1) / (y2 - y1)) * 57.2958;
-    }
-    if (output < 0) {
-        output += 360;
-    }
-    return output;
-}
-
-void fft_list_wrapper(list_t *samples, list_t *output) {
-    /* convert to complex */
-    int dimension = samples -> length;
-    complex_t complexSamples[dimension];
-    for (int i = 0; i < dimension; i++) {
-        complexSamples[i].Re = samples -> data[i].d;
-        complexSamples[i].Im = 0.0f;
-    }
-    complex_t scratch[dimension];
-    fft(complexSamples, dimension, scratch);
-    /* parse */
-    for (int i = 0; i < dimension; i++) {
-        double fftSample = complexSamples[i].Re;
-        list_append(output, (unitype) fftSample, 'd');
-    }
-}
-
+/* UI elements */
 void dialTick(int window) {
     int windowID = pow2(window);
     for (int i = 0; i < self.windows[window].dials -> length; i++) {
@@ -505,14 +518,14 @@ void dropdownTick(int window) {
                             } else {
                                 dropdown -> index = selected;
                             }
-                            self.oscDataIndex = dropdown -> index;
-                            self.oscRightBound = self.data -> data[self.oscDataIndex].r -> length - 1;
-                            if (self.oscRightBound < 0) {
-                                self.oscRightBound = 0;
+                            self.osc[0].dataIndex = dropdown -> index;
+                            self.osc[0].rightBound = self.data -> data[self.osc[0].dataIndex].r -> length - 1;
+                            if (self.osc[0].rightBound < 0) {
+                                self.osc[0].rightBound = 0;
                             }
-                            self.oscLeftBound = self.data -> data[self.oscDataIndex].r -> length - self.oscWindowSize - 1;
-                            if (self.oscLeftBound < 0) {
-                                self.oscLeftBound = 0;
+                            self.osc[0].leftBound = self.data -> data[self.osc[0].dataIndex].r -> length - self.osc[0].windowSize - 1;
+                            if (self.osc[0].leftBound < 0) {
+                                self.osc[0].leftBound = 0;
                             }
                         }
                         dropdown -> status = -2;
@@ -784,51 +797,52 @@ void renderWindow(int window) {
     }
 }
 
-void renderOscData() {
-    self.oscBottomBound = self.oscTopBound * -1;
+void renderOscData(int oscIndex) {
+    int windowIndex = ilog2(WINDOW_OSC);
+    self.osc[oscIndex].bottomBound = self.osc[oscIndex].topBound * -1;
     /* render data */
-    if (!self.stop) { 
-        self.oscRightBound = self.data -> data[self.oscDataIndex].r -> length;
+    if (!self.osc[oscIndex].stop) { 
+        self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex].r -> length;
     }
     /* TODO - check this logic to ensure correctness */
-    if (self.oscRightBound - self.oscLeftBound < self.oscWindowSize) {
-        self.oscLeftBound = self.oscRightBound - self.oscWindowSize;
-        if (self.oscLeftBound < 0) {
-            self.oscLeftBound = 0;
+    if (self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound < self.osc[oscIndex].windowSize) {
+        self.osc[oscIndex].leftBound = self.osc[oscIndex].rightBound - self.osc[oscIndex].windowSize;
+        if (self.osc[oscIndex].leftBound < 0) {
+            self.osc[oscIndex].leftBound = 0;
         }
     }
-    if (self.oscRightBound > self.oscLeftBound + self.oscWindowSize) {
-        self.oscLeftBound = self.oscRightBound - self.oscWindowSize;
+    if (self.osc[oscIndex].rightBound > self.osc[oscIndex].leftBound + self.osc[oscIndex].windowSize) {
+        self.osc[oscIndex].leftBound = self.osc[oscIndex].rightBound - self.osc[oscIndex].windowSize;
     }
-    if (self.windows[0].minimize == 0) {
+    if (self.windows[windowIndex].minimize == 0) {
         /* render window background */
-        turtleRectangle(self.windows[0].windowCoords[0], self.windows[0].windowCoords[1], self.windows[0].windowCoords[2], self.windows[0].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+        turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         turtlePenSize(1);
         turtlePenColor(0, 0, 0);
-        turtleGoto(self.windows[0].windowCoords[0], (self.windows[0].windowCoords[1] - self.windows[0].windowTop + self.windows[0].windowCoords[3]) / 2);
+        turtleGoto(self.windows[windowIndex].windowCoords[0], (self.windows[windowIndex].windowCoords[1] - self.windows[windowIndex].windowTop + self.windows[windowIndex].windowCoords[3]) / 2);
         turtlePenDown();
-        turtleGoto(self.windows[0].windowCoords[2], (self.windows[0].windowCoords[1] - self.windows[0].windowTop + self.windows[0].windowCoords[3]) / 2);
+        turtleGoto(self.windows[windowIndex].windowCoords[2], (self.windows[windowIndex].windowCoords[1] - self.windows[windowIndex].windowTop + self.windows[windowIndex].windowCoords[3]) / 2);
         turtlePenUp();
         /* render data */
         turtlePenSize(1);
         turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
-        double xquantum = (self.windows[0].windowCoords[2] - self.windows[0].windowCoords[0]) / (self.oscRightBound - self.oscLeftBound - 1);
-        for (int i = 0; i < self.oscRightBound - self.oscLeftBound; i++) {
-            turtleGoto(self.windows[0].windowCoords[0] + i * xquantum, self.windows[0].windowCoords[1] + ((self.data -> data[self.oscDataIndex].r -> data[self.oscLeftBound + i].d - self.oscBottomBound) / (self.oscTopBound - self.oscBottomBound)) * (self.windows[0].windowCoords[3] - self.windows[0].windowTop - self.windows[0].windowCoords[1]));
+        double xquantum = (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0]) / (self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound - 1);
+        for (int i = 0; i < self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound; i++) {
+            turtleGoto(self.windows[windowIndex].windowCoords[0] + i * xquantum, self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex].r -> data[self.osc[oscIndex].leftBound + i].d - self.osc[oscIndex].bottomBound) / (self.osc[oscIndex].topBound - self.osc[oscIndex].bottomBound)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
             turtlePenDown();
         }
         turtlePenUp();
         /* render mouse */
         // if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_OSC) {
-            if (self.mx > self.windows[0].windowCoords[0] + 15 && self.my > self.windows[0].windowCoords[1] && self.mx < self.windows[0].windowCoords[2] && self.windows[0].windowCoords[3] - self.windows[0].windowTop) {
-                int sample = round((self.mx - self.windows[0].windowCoords[0]) / xquantum);
-                if (self.oscLeftBound + sample >= self.data -> data[self.oscDataIndex].r -> length) {
+            if (self.mx > self.windows[windowIndex].windowCoords[0] + 15 && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) {
+                int sample = round((self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum);
+                if (self.osc[oscIndex].leftBound + sample >= self.data -> data[self.osc[oscIndex].dataIndex].r -> length) {
                     return;
                 }
-                double sampleX = self.windows[0].windowCoords[0] + sample * xquantum;
-                double sampleY = self.windows[0].windowCoords[1] + ((self.data -> data[self.oscDataIndex].r -> data[self.oscLeftBound + sample].d - self.oscBottomBound) / (self.oscTopBound - self.oscBottomBound)) * (self.windows[0].windowCoords[3] - self.windows[0].windowTop - self.windows[0].windowCoords[1]);
-                turtleRectangle(sampleX - 1, self.windows[0].windowCoords[3] - self.windows[0].windowTop, sampleX + 1, self.windows[0].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
-                turtleRectangle(self.windows[0].windowCoords[0], sampleY - 1, self.windows[0].windowCoords[2], sampleY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+                double sampleX = self.windows[windowIndex].windowCoords[0] + sample * xquantum;
+                double sampleY = self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex].r -> data[self.osc[oscIndex].leftBound + sample].d - self.osc[oscIndex].bottomBound) / (self.osc[oscIndex].topBound - self.osc[oscIndex].bottomBound)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+                turtleRectangle(sampleX - 1, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop, sampleX + 1, self.windows[windowIndex].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+                turtleRectangle(self.windows[windowIndex].windowCoords[0], sampleY - 1, self.windows[windowIndex].windowCoords[2], sampleY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
                 turtlePenColor(215, 215, 215);
                 turtlePenSize(4);
                 turtleGoto(sampleX, sampleY);
@@ -836,11 +850,11 @@ void renderOscData() {
                 turtlePenUp();
                 char sampleValue[24];
                 /* render side box */
-                sprintf(sampleValue, "%.02lf", self.data -> data[self.oscDataIndex].r -> data[self.oscLeftBound + sample].d);
+                sprintf(sampleValue, "%.02lf", self.data -> data[self.osc[oscIndex].dataIndex].r -> data[self.osc[oscIndex].leftBound + sample].d);
                 double boxLength = textGLGetStringLength(sampleValue, 8);
-                double boxX = self.windows[0].windowCoords[0] + 12;
+                double boxX = self.windows[windowIndex].windowCoords[0] + 12;
                 if (sampleX - boxX < 40) {
-                    boxX = self.windows[0].windowCoords[2] - self.windows[0].windowSide - boxLength - 5;
+                    boxX = self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - boxLength - 5;
                 }
                 double boxY = sampleY + 10;
                 turtleRectangle(boxX, boxY - 5, boxX + 4 + boxLength, boxY + 5, 215, 215, 215, 0);
@@ -851,59 +865,59 @@ void renderOscData() {
                 double boxLength2 = textGLGetStringLength(sampleValue, 8);
                 double boxY2 = sampleY + 10;
                 double boxX2 = sampleX - boxLength2 / 2;
-                if (boxX2 - 15 < self.windows[0].windowCoords[0]) {
-                    boxX2 = self.windows[0].windowCoords[0] + 15;
+                if (boxX2 - 15 < self.windows[windowIndex].windowCoords[0]) {
+                    boxX2 = self.windows[windowIndex].windowCoords[0] + 15;
                 }
-                if (boxX2 + boxLength2 + self.windows[0].windowSide + 5 > self.windows[0].windowCoords[2]) {
-                    boxX2 = self.windows[0].windowCoords[2] - boxLength2 - self.windows[0].windowSide - 5;
+                if (boxX2 + boxLength2 + self.windows[windowIndex].windowSide + 5 > self.windows[windowIndex].windowCoords[2]) {
+                    boxX2 = self.windows[windowIndex].windowCoords[2] - boxLength2 - self.windows[windowIndex].windowSide - 5;
                 }
-                turtleRectangle(boxX2 - 2, self.windows[0].windowCoords[3] - self.windows[0].windowTop - 15, boxX2 + boxLength2 + 2, self.windows[0].windowCoords[3] - self.windows[0].windowTop - 5, 215, 215, 215, 0);
+                turtleRectangle(boxX2 - 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 15, boxX2 + boxLength2 + 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 5, 215, 215, 215, 0);
                 turtlePenColor(0, 0, 0);
-                textGLWriteString(sampleValue, boxX2, self.windows[0].windowCoords[3] - 26, 8, 0);
+                textGLWriteString(sampleValue, boxX2, self.windows[windowIndex].windowCoords[3] - 26, 8, 0);
             }
         // }
         /* render side axis */
-        turtleRectangle(self.windows[0].windowCoords[0], self.windows[0].windowCoords[1], self.windows[0].windowCoords[0] + 10, self.windows[0].windowCoords[3], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+        turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[0] + 10, self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
         turtlePenColor(0, 0, 0);
         turtlePenSize(1);
-        double ycenter = (self.windows[0].windowCoords[1] + self.windows[0].windowCoords[3] - self.windows[0].windowTop) / 2;
-        turtleGoto(self.windows[0].windowCoords[0], ycenter);
+        double ycenter = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2;
+        turtleGoto(self.windows[windowIndex].windowCoords[0], ycenter);
         turtlePenDown();
-        turtleGoto(self.windows[0].windowCoords[0] + 5, ycenter);
+        turtleGoto(self.windows[windowIndex].windowCoords[0] + 5, ycenter);
         turtlePenUp();
-        int tickMarks = round(self.oscTopBound / 4) * 4;
-        double culling = self.oscTopBound;
+        int tickMarks = round(self.osc[oscIndex].topBound / 4) * 4;
+        double culling = self.osc[oscIndex].topBound;
         while (culling > 60) {
             culling /= 4;
             tickMarks /= 4;
         }
         tickMarks = ceil(tickMarks / 4) * 4;
-        double yquantum = (self.windows[0].windowCoords[3] - self.windows[0].windowTop - self.windows[0].windowCoords[1]) / tickMarks;
+        double yquantum = (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]) / tickMarks;
         for (int i = 1; i < tickMarks; i++) {
-            double ypos = self.windows[0].windowCoords[1] + i * yquantum;
-            turtleGoto(self.windows[0].windowCoords[0], ypos);
+            double ypos = self.windows[windowIndex].windowCoords[1] + i * yquantum;
+            turtleGoto(self.windows[windowIndex].windowCoords[0], ypos);
             turtlePenDown();
             int tickLength = 2;
             if (i % (tickMarks / 4) == 0) {
                 tickLength = 4;
             }
-            turtleGoto(self.windows[0].windowCoords[0] + tickLength, ypos);
+            turtleGoto(self.windows[windowIndex].windowCoords[0] + tickLength, ypos);
             turtlePenUp();
         }
         if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_OSC) {
-            int mouseSample = round((self.my - self.windows[0].windowCoords[1]) / yquantum);
+            int mouseSample = round((self.my - self.windows[windowIndex].windowCoords[1]) / yquantum);
             if (mouseSample > 0 && mouseSample < tickMarks) {
-                double ypos = self.windows[0].windowCoords[1] + mouseSample * yquantum;
+                double ypos = self.windows[windowIndex].windowCoords[1] + mouseSample * yquantum;
                 int tickLength = 2;
                 if (mouseSample % (tickMarks / 4) == 0) {
                     tickLength = 4;
                 }
-                if (self.mx > self.windows[0].windowCoords[0] && self.mx < self.windows[0].windowCoords[0] + 15) {
-                    turtleTriangle(self.windows[0].windowCoords[0] + tickLength + 2, ypos, self.windows[0].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[0].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
+                if (self.mx > self.windows[windowIndex].windowCoords[0] && self.mx < self.windows[windowIndex].windowCoords[0] + 15) {
+                    turtleTriangle(self.windows[windowIndex].windowCoords[0] + tickLength + 2, ypos, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
                     char tickValue[24];
-                    sprintf(tickValue, "%d", (int) (self.oscTopBound / (tickMarks / 2) * mouseSample - self.oscTopBound));
+                    sprintf(tickValue, "%d", (int) (self.osc[oscIndex].topBound / (tickMarks / 2) * mouseSample - self.osc[oscIndex].topBound));
                     turtlePenColor(215, 215, 215);
-                    textGLWriteString(tickValue, self.windows[0].windowCoords[0] + tickLength + 13, ypos, 8, 0);
+                    textGLWriteString(tickValue, self.windows[windowIndex].windowCoords[0] + tickLength + 13, ypos, 8, 0);
                 }
             }
         }
@@ -911,14 +925,14 @@ void renderOscData() {
 }
 
 void renderFreqData() {
-    (self.windows[1].windowCoords[0], self.windows[1].windowCoords[1], self.windows[1].windowCoords[2], self.windows[1].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+    int windowIndex = ilog2(WINDOW_FREQ);
     /* linear windowing function over 10% of the sample */
-    int dataLength = self.oscRightBound - self.oscLeftBound;
+    int dataLength = self.osc[self.freqOscIndex].rightBound - self.osc[self.freqOscIndex].leftBound;
     int threshold = (dataLength) * 0.1;
     double damping = 1.0 / threshold;
     list_clear(self.windowData);
     for (int i = 0; i < dataLength; i++) {
-        double dataPoint = self.data -> data[self.oscDataIndex].r -> data[i + self.oscLeftBound].d;
+        double dataPoint = self.data -> data[self.osc[self.freqOscIndex].dataIndex].r -> data[i + self.osc[self.freqOscIndex].leftBound].d;
         if (i < threshold) {
             dataPoint *= damping * (i + 1);
         }
@@ -929,16 +943,16 @@ void renderFreqData() {
     }
     list_clear(self.freqData);
     fft_list_wrapper(self.windowData, self.freqData);
-    double xquantum = (self.windows[1].windowCoords[2] - self.windows[1].windowCoords[0] - self.windows[1].windowSide) / ((self.windowData -> length - 2) / self.freqZoom) * 2;
-    if (self.windows[1].minimize == 0) {
+    double xquantum = (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0] - self.windows[windowIndex].windowSide) / ((self.windowData -> length - 2) / self.freqZoom) * 2;
+    if (self.windows[windowIndex].minimize == 0) {
         /* render window background */
-        turtleRectangle(self.windows[1].windowCoords[0], self.windows[1].windowCoords[1], self.windows[1].windowCoords[2], self.windows[1].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+        turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         turtlePenSize(1);
         turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
         if (self.freqData -> length % 2) {
             xquantum *= (self.freqData -> length - 2.0) / (self.freqData -> length - 1.0);
         }
-        self.freqRightBound = 1 + self.freqLeftBound + (self.windows[1].windowCoords[2] - self.windows[1].windowSide - self.windows[1].windowCoords[0]) / xquantum;
+        self.freqRightBound = 1 + self.freqLeftBound + (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]) / xquantum;
         if (self.freqRightBound > self.freqData -> length / 2 + self.freqData -> length % 2) {
             self.freqRightBound = self.freqData -> length / 2 + self.freqData -> length % 2;
         }
@@ -947,22 +961,22 @@ void renderFreqData() {
             if (magnitude < 0) {
                 magnitude *= -1;
             }
-            turtleGoto(self.windows[1].windowCoords[0] + (i - self.freqLeftBound) * xquantum, self.windows[1].windowCoords[1] + 9 + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]));
+            turtleGoto(self.windows[windowIndex].windowCoords[0] + (i - self.freqLeftBound) * xquantum, self.windows[windowIndex].windowCoords[1] + 9 + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
             turtlePenDown();
         }
         turtlePenUp();
         /* render mouse */
         // if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_FREQ) {
-            if (self.mx > self.windows[1].windowCoords[0] && self.my > self.windows[1].windowCoords[1] && self.mx < self.windows[1].windowCoords[2] - self.windows[1].windowSide && self.windows[1].windowCoords[3] - self.windows[1].windowTop) {
-                double sample = (self.mx - self.windows[1].windowCoords[0]) / xquantum + self.freqLeftBound;
-                if (self.oscLeftBound + sample >= self.data -> data[self.oscDataIndex].r -> length) {
+            if (self.mx > self.windows[windowIndex].windowCoords[0] && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) {
+                double sample = (self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum + self.freqLeftBound;
+                if (self.osc[self.freqOscIndex].leftBound + sample >= self.data -> data[self.osc[self.freqOscIndex].dataIndex].r -> length) {
                     return;
                 }
                 int roundedSample = round(sample);
-                double sampleX = self.windows[1].windowCoords[0] + (roundedSample - self.freqLeftBound) * xquantum;
-                double sampleY = 9 + self.windows[1].windowCoords[1] + (fabs(self.freqData -> data[roundedSample].d) / (self.topFreq)) * (self.windows[1].windowCoords[3] - self.windows[1].windowTop - self.windows[1].windowCoords[1]);
-                turtleRectangle(sampleX - 1, self.windows[1].windowCoords[3] - self.windows[1].windowTop, sampleX + 1, self.windows[1].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
-                turtleRectangle(self.windows[1].windowCoords[0], sampleY - 1, self.windows[1].windowCoords[2] - self.windows[1].windowSide, sampleY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+                double sampleX = self.windows[windowIndex].windowCoords[0] + (roundedSample - self.freqLeftBound) * xquantum;
+                double sampleY = 9 + self.windows[windowIndex].windowCoords[1] + (fabs(self.freqData -> data[roundedSample].d) / (self.topFreq)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+                turtleRectangle(sampleX - 1, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop, sampleX + 1, self.windows[windowIndex].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+                turtleRectangle(self.windows[windowIndex].windowCoords[0], sampleY - 1, self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide, sampleY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
                 turtlePenColor(215, 215, 215);
                 turtlePenSize(4);
                 turtleGoto(sampleX, sampleY);
@@ -972,30 +986,30 @@ void renderFreqData() {
                 /* render side box */
                 sprintf(sampleValue, "%.02lf", fabs(self.freqData -> data[roundedSample].d));
                 double boxLength = textGLGetStringLength(sampleValue, 8);
-                double boxX = self.windows[1].windowCoords[0] + 2;
+                double boxX = self.windows[windowIndex].windowCoords[0] + 2;
                 if (sampleX - boxX < 40) {
-                    boxX = self.windows[1].windowCoords[2] - self.windows[1].windowSide - boxLength - 5;
+                    boxX = self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - boxLength - 5;
                 }
                 double boxY = sampleY + 10;
                 turtleRectangle(boxX, boxY - 5, boxX + 4 + boxLength, boxY + 5, 215, 215, 215, 0);
                 turtlePenColor(0, 0, 0);
                 textGLWriteString(sampleValue, boxX + 2, boxY - 1, 8, 0);
                 /* render top box */
-                sprintf(sampleValue, "%.1lfHz", sample / (dataLength / self.oscSamplesPerSecond));
+                sprintf(sampleValue, "%.1lfHz", sample / (dataLength / self.osc[self.freqOscIndex].samplesPerSecond));
                 double boxLength2 = textGLGetStringLength(sampleValue, 8);
                 double boxX2 = sampleX - boxLength2 / 2;
-                if (boxX2 - 5 < self.windows[1].windowCoords[0]) {
-                    boxX2 = self.windows[1].windowCoords[0] + 5;
+                if (boxX2 - 5 < self.windows[windowIndex].windowCoords[0]) {
+                    boxX2 = self.windows[windowIndex].windowCoords[0] + 5;
                 }
-                if (boxX2 + boxLength2 + self.windows[1].windowSide + 5 > self.windows[1].windowCoords[2]) {
-                    boxX2 = self.windows[1].windowCoords[2] - boxLength2 - self.windows[1].windowSide - 5;
+                if (boxX2 + boxLength2 + self.windows[windowIndex].windowSide + 5 > self.windows[windowIndex].windowCoords[2]) {
+                    boxX2 = self.windows[windowIndex].windowCoords[2] - boxLength2 - self.windows[windowIndex].windowSide - 5;
                 }
-                turtleRectangle(boxX2 - 2, self.windows[1].windowCoords[3] - self.windows[1].windowTop - 15, boxX2 + boxLength2 + 2, self.windows[1].windowCoords[3] - self.windows[1].windowTop - 5, 215, 215, 215, 0);
+                turtleRectangle(boxX2 - 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 15, boxX2 + boxLength2 + 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 5, 215, 215, 215, 0);
                 turtlePenColor(0, 0, 0);
-                textGLWriteString(sampleValue, boxX2, self.windows[1].windowCoords[3] - 26, 8, 0);
+                textGLWriteString(sampleValue, boxX2, self.windows[windowIndex].windowCoords[3] - 26, 8, 0);
                 /* scrolling */
                 const double scaleFactor = 1.25;
-                double buckets = (self.mx - self.windows[1].windowCoords[0]) / xquantum;
+                double buckets = (self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum;
                 if (self.mw > 0) {
                     /* zoom in */
                     self.freqZoom *= scaleFactor;
@@ -1023,9 +1037,10 @@ void renderFreqData() {
 }
 
 void renderEditorData() {
-    if (self.windows[2].minimize == 0) {
+    int windowIndex = ilog2(WINDOW_EDITOR);
+    if (self.windows[windowIndex].minimize == 0) {
         /* render window background */
-        turtleRectangle(self.windows[2].windowCoords[0], self.windows[2].windowCoords[1], self.windows[2].windowCoords[2], self.windows[2].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+        turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
     }
 }
 
@@ -1033,7 +1048,7 @@ void renderOrder() {
     for (int i = 0; i < self.windowRender -> length; i++) {
         switch (self.windowRender -> data[i].i) {
         case WINDOW_OSC:
-            renderOscData();
+            renderOscData(0);
             break;
         case WINDOW_FREQ:
             renderFreqData();
