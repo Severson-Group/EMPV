@@ -82,6 +82,10 @@ typedef struct { // oscilloscope view
 } oscilloscope_t;
 
 typedef struct { // all the empv shared state is here
+    /* comms */
+    char commsEnabled;
+    SOCKET *cmdSocket;
+    SOCKET *logSocket;
     /* general */
         list_t *data; // a list of all data collected through ethernet
         list_t *logVariables; // a list of variables logged on the AMDC
@@ -216,6 +220,7 @@ void fft_list_wrapper(list_t *samples, list_t *output) {
 
 /* initialise global state */
 void init() { // initialises the empv variabes (shared state)
+    self.commsEnabled = 0;
 /* color */
     double themeCopy[48] = {
         /* light theme */
@@ -340,6 +345,30 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[editorIndex].dials = list_init();
     self.windows[editorIndex].switches = list_init();   
     self.windows[editorIndex].dropdowns = list_init();    
+}
+
+void initComms(SOCKET *cmdSocket, SOCKET *logSocket) {
+    self.commsEnabled = 1;
+    self.cmdSocket = cmdSocket;
+    self.logSocket = logSocket;
+}
+
+void commsCommand(char *cmd) {
+    char amdc_cmd[strlen(cmd) + 4];
+    for (int i = 0; i < strlen(cmd) + 4; i++) {
+        amdc_cmd[i] = 0;
+    }
+    memcpy(amdc_cmd, cmd, strlen(cmd) + 1);
+    if (amdc_cmd[strlen(amdc_cmd) - 1] != '\n' || amdc_cmd[strlen(amdc_cmd) - 2] != 'r') {
+        amdc_cmd[strlen(amdc_cmd)] = '\r';
+        amdc_cmd[strlen(amdc_cmd)] = '\n';
+    }
+    unsigned char receiveBuffer[2048] = {0};
+    /* get log info */
+    win32tcpSend(self.cmdSocket, amdc_cmd, strlen(amdc_cmd));
+    win32tcpReceive2(self.cmdSocket, receiveBuffer, strlen(amdc_cmd) + 1);
+    win32tcpReceive2(self.cmdSocket, receiveBuffer, 2048);
+    printf("received %s\n", receiveBuffer);
 }
 
 /* UI elements */
@@ -1234,20 +1263,23 @@ int main(int argc, char *argv[]) {
         SOCKET *sockets[2] = {NULL, NULL};
         sockets[0] = win32tcpCreateSocket();
         if (sockets[0] != NULL) {
-            unsigned char receiveBuffer[10];
-            win32tcpReceive(sockets[0], receiveBuffer, 10);
+            unsigned char receiveBuffer[10] = {0};
+            win32tcpReceive(sockets[0], receiveBuffer, 1);
             unsigned char amdc_cmd_id[2] = {12, 34};
             win32tcpSend(sockets[0], amdc_cmd_id, 2);
             printf("Successfully created AMDC cmd socket\n");
         }
         sockets[1] = win32tcpCreateSocket();
-        if (sockets[0] != NULL) {
-            unsigned char receiveBuffer[10];
-            win32tcpReceive(sockets[0], receiveBuffer, 10);
+        if (sockets[1] != NULL) {
+            unsigned char receiveBuffer[10] = {0};
+            win32tcpReceive(sockets[1], receiveBuffer, 1);
             unsigned char amdc_log_id[2] = {56, 78};
-            win32tcpSend(sockets[0], amdc_log_id, 2);
+            win32tcpSend(sockets[1], amdc_log_id, 2);
             printf("Successfully created AMDC log socket\n");
         }
+
+        initComms(sockets[0], sockets[1]);
+        commsCommand("log info");
     }
 
     int tps = 120; // ticks per second (locked to fps in this case)
@@ -1264,8 +1296,8 @@ int main(int argc, char *argv[]) {
         double sinValue1 = sin(tick / 5.0) * 25;
         double sinValue2 = sin(tick / 3.37) * 25;
         double sinValue3 = sin(tick * 1.1) * 12.5;
-        // list_append(self.data -> data[0].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
-        list_append(self.data -> data[0].r, (unitype) (sinValue1), 'd');
+        list_append(self.data -> data[0].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
+        // list_append(self.data -> data[0].r, (unitype) (sinValue1), 'd');
         utilLoop();
         turtleGetMouseCoords(); // get the mouse coordinates (turtle.mouseX, turtle.mouseY)
         turtleClear();

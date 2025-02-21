@@ -1,6 +1,7 @@
 /*
 https://gist.github.com/mmozeiko/c0dfcc8fec527a90a02145d2cc0bfb6d
 https://learn.microsoft.com/en-us/windows/win32/winsock/complete-server-code
+https://learn.microsoft.com/en-us/windows/win32/winsock/complete-client-code
 */
 
 #ifndef WIN32TCP
@@ -191,6 +192,8 @@ SOCKET *win32tcpCreateSocket() {
         }
         break;
     }
+    // unsigned long mode;
+    // printf("ioctlsocket %d\n", ioctlsocket(win32Socket.connectSocket[socketIndex], FIONBIO, &mode));
     return &win32Socket.connectSocket[socketIndex];
 }
 
@@ -204,8 +207,9 @@ int win32tcpSend(SOCKET *socket, unsigned char *data, int length) {
 }
 
 int win32tcpReceive(SOCKET *socket, unsigned char *buffer, int length) {
-    int status = 0;
-    do {
+    int status = 1;
+    int bytes = 0;
+    while (status > 0) {
         status = recv(*socket, buffer, length, 0);
         if (status > 0) {
             printf("Bytes received: %d\n", status);
@@ -214,9 +218,25 @@ int win32tcpReceive(SOCKET *socket, unsigned char *buffer, int length) {
         } else {
             printf("recv failed with error: %d\n", WSAGetLastError());
         }
+        bytes += status;
+        if (bytes >= length) {
+            return bytes;
+        }
+    }
+    return bytes;
+}
 
-    } while (status > 0);
-    return 0;
+int win32tcpReceive2(SOCKET *socket, unsigned char *buffer, int length) {
+    int status = 1;
+    status = recv(*socket, buffer, length, 0);
+    if (status > 0) {
+        printf("Bytes received: %d\n", status);
+    } else if (status == 0) {
+        printf("Connection closed\n");
+    } else {
+        printf("recv failed with error: %d\n", WSAGetLastError());
+    }
+    return status;
 }
 
 void win32tcpDeinit() {
