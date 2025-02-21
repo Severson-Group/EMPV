@@ -87,11 +87,14 @@ typedef struct { // all the empv shared state is here
     /* comms */
     char commsEnabled;
     SOCKET *cmdSocket;
+    int cmdSocketID;
     SOCKET *logSocket;
+    int logSocketID;
     char tcpReceiveBuffer[TCP_RECEIVE_BUFFER_LENGTH];
     /* general */
         list_t *data; // a list of all data collected through ethernet
         list_t *logVariables; // a list of variables logged on the AMDC
+        list_t *logSlots; // list of slot numbers synced with logVariables
         list_t *windowRender; // which order to render windows in
         window_t windows[NUM_WINDOWS]; // window variables
         /* mouse variables */
@@ -221,10 +224,12 @@ void fft_list_wrapper(list_t *samples, list_t *output) {
     }
 }
 
-void initComms(SOCKET *cmdSocket, SOCKET *logSocket) {
+void initComms(SOCKET *cmdSocket, int cmdID, SOCKET *logSocket, int logID) {
     self.commsEnabled = 1;
     self.cmdSocket = cmdSocket;
+    self.cmdSocketID = cmdID;
     self.logSocket = logSocket;
+    self.logSocketID = logID;
 }
 
 void commsCommand(char *cmd) {
@@ -251,10 +256,17 @@ void commsCommand(char *cmd) {
 }
 
 void populateLoggedVariables() {
+    if (self.commsEnabled == 0) {
+        return;
+    }
     commsCommand("log info");
     /* parse command */
+    int maxSlots = 0;
+    sscanf(self.tcpReceiveBuffer + 31, "%d", &maxSlots);
+    printf("max slots: %d\n", maxSlots);
     char *testString = strtok(self.tcpReceiveBuffer, "\n");
     int stringHold = 0;
+    int slotNum = 0;
     while (testString != NULL) {
         testString = strtok(NULL, "\n");
         if (testString == NULL) {
@@ -269,6 +281,7 @@ void populateLoggedVariables() {
                         break;
                     }
                 }
+                list_append(self.logSlots, (unitype) slotNum, 'i');
                 list_append(self.logVariables, (unitype) (testString + 8), 's');
                 break;
             case 4: // Type: <type>
@@ -284,14 +297,32 @@ void populateLoggedVariables() {
             }
             stringHold--;
         } else {
-            testString[strlen(testString) - 3] = '\0';
+            int len = strlen(testString);
+            char savedChar = testString[len - 3];
+            testString[len - 3] = '\0';
             if (strcmp(testString, "Slot") == 0 || strcmp(testString, "Slot ") == 0) {
+                testString[len - 3] = savedChar;
+                sscanf(testString + 5, "%d", &slotNum);
                 stringHold = 5;
             }
         }
     }
+    /* clear all streams */
+    for (int i = 0; i < maxSlots; i++) {
+        char command[128];
+        sprintf(command, "log stream stop %d %d", i, self.logSocketID);
+        commsCommand(command);
+    }
     /* start stream for logged variables */
-    
+    for (int i = 0; i < self.logSlots -> length; i++) {
+        if (self.logSlots -> data[i].i != -1) {
+            char command[128];
+            sprintf(command, "log stream start %d %d", self.logSlots -> data[i].i, self.logSocketID);
+            printf("sending command: %s\n", command);
+            commsCommand(command);
+            printf("response: %s\n", self.tcpReceiveBuffer);
+        }
+    }
 }
 
 /* initialise global state */
@@ -333,7 +364,9 @@ void init() { // initialises the empv variabes (shared state)
     }
     /* data */
     self.logVariables = list_init();
+    self.logSlots = list_init();
     list_append(self.logVariables, (unitype) "Demo", 's');
+    list_append(self.logSlots, (unitype) -1, 'i');
     populateLoggedVariables(); // gather logged variables
     self.data = list_init();
     for (int i = 0; i < self.logVariables -> length; i++) {
@@ -1314,14 +1347,15 @@ int main(int argc, char *argv[]) {
             printf("Failed to connect to %s, ensure AMDC is plugged in and listening on port %s\n", win32Socket.address, win32Socket.port);
         }
         SOCKET *sockets[2] = {NULL, NULL};
+        int socketID[2] = {-1, -1};
         sockets[0] = win32tcpCreateSocket();
         if (sockets[0] != NULL) {
             unsigned char receiveBuffer[10] = {0};
             win32tcpReceive(sockets[0], receiveBuffer, 1);
             unsigned char amdc_cmd_id[2] = {12, 34};
             win32tcpSend(sockets[0], amdc_cmd_id, 2);
-            printf("Successfully created AMDC cmd socket\n");
-            initComms(sockets[0], sockets[1]);
+            printf("Successfully created AMDC cmd socket with id %d\n", *receiveBuffer);
+            socketID[0] = *receiveBuffer;
         }
         sockets[1] = win32tcpCreateSocket();
         if (sockets[1] != NULL) {
@@ -1329,8 +1363,10 @@ int main(int argc, char *argv[]) {
             win32tcpReceive(sockets[1], receiveBuffer, 1);
             unsigned char amdc_log_id[2] = {56, 78};
             win32tcpSend(sockets[1], amdc_log_id, 2);
-            printf("Successfully created AMDC log socket\n");
+            printf("Successfully created AMDC log socket with id %d\n", *receiveBuffer);
+            socketID[1] = *receiveBuffer;
         }
+        initComms(sockets[0], socketID[0], sockets[1], socketID[1]);
     }
 
     int tps = 120; // ticks per second (locked to fps in this case)
