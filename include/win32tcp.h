@@ -212,11 +212,11 @@ int win32tcpReceive(SOCKET *socket, unsigned char *buffer, int length) {
     while (status > 0) {
         status = recv(*socket, buffer, length, 0);
         if (status > 0) {
-            printf("Bytes received: %d\n", status);
+            // printf("Bytes received: %d\n", status);
         } else if (status == 0) {
-            printf("Connection closed\n");
+            // printf("Connection closed\n");
         } else {
-            printf("recv failed with error: %d\n", WSAGetLastError());
+            // printf("recv failed with error: %d\n", WSAGetLastError());
         }
         bytes += status;
         if (bytes >= length) {
@@ -230,11 +230,11 @@ int win32tcpReceive2(SOCKET *socket, unsigned char *buffer, int length) {
     int status = 1;
     status = recv(*socket, buffer, length, 0);
     if (status > 0) {
-        printf("Bytes received: %d\n", status);
+        // printf("Bytes received: %d\n", status);
     } else if (status == 0) {
-        printf("Connection closed\n");
+        // printf("Connection closed\n");
     } else {
-        printf("recv failed with error: %d\n", WSAGetLastError());
+        // printf("recv failed with error: %d\n", WSAGetLastError());
     }
     return status;
 }

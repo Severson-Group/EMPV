@@ -14,6 +14,8 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 #include "include/fft.h"
 #include <time.h>
 
+#define TCP_RECEIVE_BUFFER_LENGTH 2048
+
 #define DIAL_LINEAR     0
 #define DIAL_LOG        1
 #define DIAL_EXP        2
@@ -86,6 +88,7 @@ typedef struct { // all the empv shared state is here
     char commsEnabled;
     SOCKET *cmdSocket;
     SOCKET *logSocket;
+    char tcpReceiveBuffer[TCP_RECEIVE_BUFFER_LENGTH];
     /* general */
         list_t *data; // a list of all data collected through ethernet
         list_t *logVariables; // a list of variables logged on the AMDC
@@ -218,9 +221,85 @@ void fft_list_wrapper(list_t *samples, list_t *output) {
     }
 }
 
+void initComms(SOCKET *cmdSocket, SOCKET *logSocket) {
+    self.commsEnabled = 1;
+    self.cmdSocket = cmdSocket;
+    self.logSocket = logSocket;
+}
+
+void commsCommand(char *cmd) {
+    if (self.commsEnabled == 0) {
+        return;
+    }
+    char amdc_cmd[strlen(cmd) + 4];
+    for (int i = 0; i < strlen(cmd) + 4; i++) {
+        amdc_cmd[i] = 0;
+    }
+    memcpy(amdc_cmd, cmd, strlen(cmd) + 1);
+    if (amdc_cmd[strlen(amdc_cmd) - 1] != '\n' || amdc_cmd[strlen(amdc_cmd) - 2] != 'r') {
+        amdc_cmd[strlen(amdc_cmd)] = '\r';
+        amdc_cmd[strlen(amdc_cmd)] = '\n';
+    }
+    for (int i = 0; i < TCP_RECEIVE_BUFFER_LENGTH; i++) {
+        self.tcpReceiveBuffer[i] = 0;
+    }
+    /* get log info */
+    win32tcpSend(self.cmdSocket, amdc_cmd, strlen(amdc_cmd));
+    win32tcpReceive2(self.cmdSocket, self.tcpReceiveBuffer, strlen(amdc_cmd) + 1);
+    win32tcpReceive2(self.cmdSocket, self.tcpReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
+    // printf("received %s\n", self.tcpReceiveBuffer);
+}
+
+void populateLoggedVariables() {
+    commsCommand("log info");
+    /* parse command */
+    char *testString = strtok(self.tcpReceiveBuffer, "\n");
+    int stringHold = 0;
+    while (testString != NULL) {
+        testString = strtok(NULL, "\n");
+        if (testString == NULL) {
+            break;
+        }
+        if (stringHold) {
+            switch (stringHold) {
+            case 5: // Name: <Name>
+                for (int i = 8; i < strlen(testString); i++) {
+                    if (isspace(testString[i])) {
+                        testString[i] = '\0';
+                        break;
+                    }
+                }
+                list_append(self.logVariables, (unitype) (testString + 8), 's');
+                break;
+            case 4: // Type: <type>
+                break;
+            case 3: // Memory address: <address>
+                break;
+            case 2: // Sampling interval (usec): <usec>
+                break;
+            case 1: // Num samples: <num>
+                break;
+            default:
+                break;    
+            }
+            stringHold--;
+        } else {
+            testString[strlen(testString) - 3] = '\0';
+            if (strcmp(testString, "Slot") == 0 || strcmp(testString, "Slot ") == 0) {
+                stringHold = 5;
+            }
+        }
+    }
+    /* start stream for logged variables */
+    
+}
+
 /* initialise global state */
 void init() { // initialises the empv variabes (shared state)
-    self.commsEnabled = 0;
+/* comms */
+    for (int i = 0; i < TCP_RECEIVE_BUFFER_LENGTH; i++) {
+        self.tcpReceiveBuffer[i] = 0;
+    }
 /* color */
     double themeCopy[48] = {
         /* light theme */
@@ -255,9 +334,7 @@ void init() { // initialises the empv variabes (shared state)
     /* data */
     self.logVariables = list_init();
     list_append(self.logVariables, (unitype) "Demo", 's');
-    list_append(self.logVariables, (unitype) "LOG_current_a", 's');
-    list_append(self.logVariables, (unitype) "LOG_current_b", 's');
-    list_append(self.logVariables, (unitype) "LOG_current_c", 's');
+    populateLoggedVariables(); // gather logged variables
     self.data = list_init();
     for (int i = 0; i < self.logVariables -> length; i++) {
         list_append(self.data, (unitype) list_init(), 'r');
@@ -345,30 +422,6 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[editorIndex].dials = list_init();
     self.windows[editorIndex].switches = list_init();   
     self.windows[editorIndex].dropdowns = list_init();    
-}
-
-void initComms(SOCKET *cmdSocket, SOCKET *logSocket) {
-    self.commsEnabled = 1;
-    self.cmdSocket = cmdSocket;
-    self.logSocket = logSocket;
-}
-
-void commsCommand(char *cmd) {
-    char amdc_cmd[strlen(cmd) + 4];
-    for (int i = 0; i < strlen(cmd) + 4; i++) {
-        amdc_cmd[i] = 0;
-    }
-    memcpy(amdc_cmd, cmd, strlen(cmd) + 1);
-    if (amdc_cmd[strlen(amdc_cmd) - 1] != '\n' || amdc_cmd[strlen(amdc_cmd) - 2] != 'r') {
-        amdc_cmd[strlen(amdc_cmd)] = '\r';
-        amdc_cmd[strlen(amdc_cmd)] = '\n';
-    }
-    unsigned char receiveBuffer[2048] = {0};
-    /* get log info */
-    win32tcpSend(self.cmdSocket, amdc_cmd, strlen(amdc_cmd));
-    win32tcpReceive2(self.cmdSocket, receiveBuffer, strlen(amdc_cmd) + 1);
-    win32tcpReceive2(self.cmdSocket, receiveBuffer, 2048);
-    printf("received %s\n", receiveBuffer);
 }
 
 /* UI elements */
@@ -1240,7 +1293,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
     glfwMakeContextCurrent(window);
-    glfwSetWindowSizeLimits(window, 128, 72, 3456, 1944);
+    glfwSetWindowSizeLimits(window, 128, 72, windowHeight * 16 / 9, windowHeight);
     int width, height, oldWidth, oldHeight;
     glfwGetWindowSize(window, &oldWidth, &oldHeight);
 
@@ -1268,6 +1321,7 @@ int main(int argc, char *argv[]) {
             unsigned char amdc_cmd_id[2] = {12, 34};
             win32tcpSend(sockets[0], amdc_cmd_id, 2);
             printf("Successfully created AMDC cmd socket\n");
+            initComms(sockets[0], sockets[1]);
         }
         sockets[1] = win32tcpCreateSocket();
         if (sockets[1] != NULL) {
@@ -1277,9 +1331,6 @@ int main(int argc, char *argv[]) {
             win32tcpSend(sockets[1], amdc_log_id, 2);
             printf("Successfully created AMDC log socket\n");
         }
-
-        initComms(sockets[0], sockets[1]);
-        commsCommand("log info");
     }
 
     int tps = 120; // ticks per second (locked to fps in this case)
