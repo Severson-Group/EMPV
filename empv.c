@@ -224,6 +224,14 @@ void fft_list_wrapper(list_t *samples, list_t *output) {
     }
 }
 
+char *convertToHex(unsigned char *input, int len) {
+    char *output = calloc(len * 3 + 5, 1);
+    for (int i = 0; i < len; i++) {
+        sprintf(output + strlen(output), "%X ", input[i]);
+    }
+    return output;
+}
+
 void initComms(SOCKET *cmdSocket, int cmdID, SOCKET *logSocket, int logID) {
     self.commsEnabled = 1;
     self.cmdSocket = cmdSocket;
@@ -253,6 +261,13 @@ void commsCommand(char *cmd) {
     win32tcpReceive2(self.cmdSocket, self.tcpReceiveBuffer, strlen(amdc_cmd) + 1);
     win32tcpReceive2(self.cmdSocket, self.tcpReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
     // printf("received %s\n", self.tcpReceiveBuffer);
+}
+
+void commsGetData() {
+    win32tcpReceive2(self.logSocket, self.tcpReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
+    char *converted = convertToHex(self.tcpReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
+    printf("received %s\n", converted);
+    free(converted);
 }
 
 void populateLoggedVariables() {
@@ -321,6 +336,7 @@ void populateLoggedVariables() {
             printf("sending command: %s\n", command);
             commsCommand(command);
             printf("response: %s\n", self.tcpReceiveBuffer);
+            break; // only do one
         }
     }
 }
@@ -1380,11 +1396,23 @@ int main(int argc, char *argv[]) {
 
     while (turtle.close == 0) { // main loop
         start = clock();
+        /* populate demo data */
         double sinValue1 = sin(tick / 5.0) * 25;
         double sinValue2 = sin(tick / 3.37) * 25;
         double sinValue3 = sin(tick * 1.1) * 12.5;
         list_append(self.data -> data[0].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
         // list_append(self.data -> data[0].r, (unitype) (sinValue1), 'd');
+        /* populate real data */
+        if (self.commsEnabled == 1) {
+            for (int i = 0; i < self.logSlots -> length; i++) {
+                if (self.logSlots -> data[i].i != -1) {
+                    commsGetData();
+                    // list_append(self.data -> data[i].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
+                    break; // only do one
+                }
+            }
+        }
+        
         utilLoop();
         turtleGetMouseCoords(); // get the mouse coordinates (turtle.mouseX, turtle.mouseY)
         turtleClear();
