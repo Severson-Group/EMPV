@@ -1242,7 +1242,6 @@ void renderOrder() {
     /* render bottom bar */
     turtleRectangle(-320, -180, 320, -170, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 50);
     for (int i = 0; i < self.windowRender -> length; i++) {
-        /* write title */
         int minX = -320 + (1) + 50 * i;
         int minY = -179;
         int maxX = -320 + (49) + 50 * i;
@@ -1253,6 +1252,7 @@ void renderOrder() {
         } else {
             turtleRectangle(minX, minY, maxX, maxY, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
         }
+        /* write title */
         turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
         textGLWriteString(self.windows[i].title, -320 + (50 / 2) + 50 * i, -175, 5, 50);
     }
