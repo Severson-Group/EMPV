@@ -26,6 +26,11 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 #define WINDOW_EDITOR   2
 #define WINDOW_OSC      4
 
+enum trigger_type {
+    TRIGGER_NONE = 0,
+    TRIGGER_RISING_EDGE
+};
+
 typedef struct { // dial
     char label[24];
     int window;
@@ -72,7 +77,14 @@ typedef struct { // general window attributes
     list_t *dropdowns;
 } window_t;
 
+typedef struct {
+    int triggerType;
+    int triggerIndex;
+    list_t *lastTriggerIndex;
+} trigger_settings_t;
+
 typedef struct { // oscilloscope view
+    trigger_settings_t trigger;
     int dataIndex;
     int leftBound; // left bound (index in data list)
     int rightBound; // right bound (index in data list)
@@ -397,6 +409,9 @@ void init() { // initialises the empv variabes (shared state)
     self.dialAnchorX = 0;
     self.dialAnchorY = 0;
     /* osc */
+    self.osc[0].trigger.triggerType = TRIGGER_NONE;
+    self.osc[0].trigger.triggerIndex = 0;
+    self.osc[0].trigger.lastTriggerIndex = list_init();
     self.osc[0].dataIndex = 0;
     self.osc[0].leftBound = 0;
     self.osc[0].rightBound = 0;
@@ -408,13 +423,13 @@ void init() { // initialises the empv variabes (shared state)
     int oscIndex = ilog2(WINDOW_OSC);
     strcpy(self.windows[oscIndex].title, "Oscilloscope");
     self.windows[oscIndex].windowCoords[0] = -317;
-    self.windows[oscIndex].windowCoords[1] = 25;
+    self.windows[oscIndex].windowCoords[1] = 0;
     self.windows[oscIndex].windowCoords[2] = -2;
     self.windows[oscIndex].windowCoords[3] = 167;
     self.windows[oscIndex].windowTop = 15;
     self.windows[oscIndex].windowSide = 50;
     self.windows[oscIndex].windowMinX = 60 + self.windows[oscIndex].windowSide;
-    self.windows[oscIndex].windowMinY = 120 + self.windows[oscIndex].windowTop;
+    self.windows[oscIndex].windowMinY = 150 + self.windows[oscIndex].windowTop;
     self.windows[oscIndex].minimize = 0;
     self.windows[oscIndex].move = 0;
     self.windows[oscIndex].click = 0;
@@ -425,6 +440,7 @@ void init() { // initialises the empv variabes (shared state)
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("X Scale", &self.osc[0].windowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[oscIndex].windowTop, 8, 4, 1024), 'p');
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[0].topBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[oscIndex].windowTop, 8, 50, 10000), 'p');
     list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Pause", &self.osc[0].stop, WINDOW_OSC, 1, -100 - self.windows[oscIndex].windowTop, 8), 'p');
+    list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Trigger", &self.osc[0].trigger.triggerType, WINDOW_OSC, 1, -130 - self.windows[oscIndex].windowTop, 8), 'p');
     list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, WINDOW_OSC, 1, -7, 8), 'p');
 
     /* frequency */
@@ -438,7 +454,7 @@ void init() { // initialises the empv variabes (shared state)
     int freqIndex = ilog2(WINDOW_FREQ);
     strcpy(self.windows[freqIndex].title, "Frequency");
     self.windows[freqIndex].windowCoords[0] = 2;
-    self.windows[freqIndex].windowCoords[1] = 25;
+    self.windows[freqIndex].windowCoords[1] = 0;
     self.windows[freqIndex].windowCoords[2] = 317;
     self.windows[freqIndex].windowCoords[3] = 167;
     self.windows[freqIndex].windowTop = 15;
@@ -457,9 +473,9 @@ void init() { // initialises the empv variabes (shared state)
     int editorIndex = ilog2(WINDOW_EDITOR);
     strcpy(self.windows[editorIndex].title, "Editor");
     self.windows[editorIndex].windowCoords[0] = -317;
-    self.windows[editorIndex].windowCoords[1] = -121;
+    self.windows[editorIndex].windowCoords[1] = -161;
     self.windows[editorIndex].windowCoords[2] = 317;
-    self.windows[editorIndex].windowCoords[3] = 21;
+    self.windows[editorIndex].windowCoords[3] = -5;
     self.windows[editorIndex].windowTop = 15;
     self.windows[editorIndex].windowSide = 0;
     self.windows[editorIndex].windowMinX = 60 + self.windows[editorIndex].windowSide;
@@ -928,14 +944,8 @@ void renderWindow(int window) {
     }
 }
 
-void renderOscData(int oscIndex) {
-    int windowIndex = ilog2(WINDOW_OSC);
-    self.osc[oscIndex].bottomBound = self.osc[oscIndex].topBound * -1;
-    /* render data */
-    if (!self.osc[oscIndex].stop) { 
-        self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex].r -> length;
-    }
-    /* TODO - check this logic to ensure correctness */
+void setBoundsNoTrigger(int oscIndex) {
+    self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex].r -> length;
     if (self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound < self.osc[oscIndex].windowSize) {
         self.osc[oscIndex].leftBound = self.osc[oscIndex].rightBound - self.osc[oscIndex].windowSize;
         if (self.osc[oscIndex].leftBound < 0) {
@@ -944,6 +954,43 @@ void renderOscData(int oscIndex) {
     }
     if (self.osc[oscIndex].rightBound > self.osc[oscIndex].leftBound + self.osc[oscIndex].windowSize) {
         self.osc[oscIndex].leftBound = self.osc[oscIndex].rightBound - self.osc[oscIndex].windowSize;
+    }
+}
+
+void renderOscData(int oscIndex) {
+    int windowIndex = ilog2(WINDOW_OSC);
+    self.osc[oscIndex].bottomBound = self.osc[oscIndex].topBound * -1;
+    /* set left and right bounds */
+    if (!self.osc[oscIndex].stop) { 
+        if (self.osc[oscIndex].trigger.triggerType == TRIGGER_NONE) {
+            setBoundsNoTrigger(oscIndex);
+        } else {
+            self.osc[oscIndex].rightBound = self.osc[oscIndex].trigger.triggerIndex + self.osc[oscIndex].windowSize / 2;
+            if (self.osc[oscIndex].rightBound > self.data -> data[self.osc[oscIndex].dataIndex].r -> length) {
+                self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex].r -> length;
+            }
+            self.osc[oscIndex].leftBound = self.osc[oscIndex].trigger.triggerIndex - self.osc[oscIndex].windowSize / 2;
+            if (self.osc[oscIndex].leftBound < 0) {
+                self.osc[oscIndex].leftBound = 0;
+            }
+
+            /* identify triggerIndex */
+            int dataLength = self.data -> data[self.osc[oscIndex].dataIndex].r -> length;
+            if (self.osc[oscIndex].trigger.lastTriggerIndex -> length > 0 && self.osc[oscIndex].trigger.lastTriggerIndex -> data[0].i + self.osc[oscIndex].windowSize / 2 <= dataLength) {
+                self.osc[oscIndex].trigger.triggerIndex = self.osc[oscIndex].trigger.lastTriggerIndex -> data[0].i;
+                list_delete(self.osc[oscIndex].trigger.lastTriggerIndex, 0);
+            }
+            if (self.osc[oscIndex].trigger.triggerIndex == 0) {
+                setBoundsNoTrigger(oscIndex);
+            }
+            if (self.osc[oscIndex].trigger.triggerType == TRIGGER_RISING_EDGE) {
+                if (self.data -> data[self.osc[oscIndex].dataIndex].r -> data[dataLength - 2].d < 0 && self.data -> data[self.osc[oscIndex].dataIndex].r -> data[dataLength - 1].d >= 0 && dataLength > self.osc[oscIndex].windowSize / 2) {
+                    list_append(self.osc[oscIndex].trigger.lastTriggerIndex, (unitype) (dataLength - 2), 'i');
+                }
+            }
+            // printf("triggerIndex %d\n", self.osc[oscIndex].trigger.triggerIndex);
+            // list_print(self.osc[oscIndex].trigger.lastTriggerIndex);
+        }
     }
     if (self.windows[windowIndex].minimize == 0) {
         /* render window background */
@@ -1400,8 +1447,8 @@ int main(int argc, char *argv[]) {
         double sinValue1 = sin(tick / 5.0) * 25;
         double sinValue2 = sin(tick / 3.37) * 25;
         double sinValue3 = sin(tick * 1.1) * 12.5;
-        list_append(self.data -> data[0].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
-        // list_append(self.data -> data[0].r, (unitype) (sinValue1), 'd');
+        // list_append(self.data -> data[0].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
+        list_append(self.data -> data[0].r, (unitype) (sinValue1), 'd');
         /* populate real data */
         if (self.commsEnabled == 1) {
             for (int i = 0; i < self.logSlots -> length; i++) {
