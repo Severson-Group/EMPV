@@ -278,7 +278,7 @@ void commsCommand(char *cmd) {
 void commsGetData() {
     win32tcpReceive2(self.logSocket, self.tcpReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
     char *converted = convertToHex(self.tcpReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
-    printf("received %s\n", converted);
+    // printf("received %s\n", converted);
     free(converted);
 }
 
