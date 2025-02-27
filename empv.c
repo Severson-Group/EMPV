@@ -104,7 +104,8 @@ typedef struct { // all the empv shared state is here
     int cmdSocketID;
     SOCKET *logSocket;
     int logSocketID;
-    char tcpReceiveBuffer[TCP_RECEIVE_BUFFER_LENGTH];
+    uint8_t tcpAsciiReceiveBuffer[TCP_RECEIVE_BUFFER_LENGTH];
+    uint8_t tcpLoggingReceiveBuffer[TCP_RECEIVE_BUFFER_LENGTH];
     /* general */
         list_t *data; // a list of all data collected through ethernet
         list_t *logVariables; // a list of variables logged on the AMDC
@@ -268,34 +269,79 @@ void commsCommand(char *cmd) {
         amdc_cmd[strlen(amdc_cmd)] = '\n';
     }
     for (int i = 0; i < TCP_RECEIVE_BUFFER_LENGTH; i++) {
-        self.tcpReceiveBuffer[i] = 0;
+        self.tcpAsciiReceiveBuffer[i] = 0;
     }
     /* get log info */
     win32tcpSend(self.cmdSocket, amdc_cmd, strlen(amdc_cmd));
-    win32tcpReceive2(self.cmdSocket, self.tcpReceiveBuffer, strlen(amdc_cmd) + 1);
-    win32tcpReceive2(self.cmdSocket, self.tcpReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
-    // printf("received %s\n", self.tcpReceiveBuffer);
+    win32tcpReceive2(self.cmdSocket, self.tcpAsciiReceiveBuffer, strlen(amdc_cmd) + 1);
+    win32tcpReceive2(self.cmdSocket, self.tcpAsciiReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
+    // printf("received %s\n", self.tcpAsciiReceiveBuffer);
 }
 
-void commsGetData() {
-    win32tcpReceive2(self.logSocket, self.tcpReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
-    char *converted = convertToHex(self.tcpReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
-    printf("received %s\n", converted);
-    free(converted);
+void commsGetData(int dataIndex) {
+    /*
+    Per the AMDC C-code,
+
+    Packet format: HEADER, VAR_SLOT, TS, DATA, FOOTER
+    where each entry is 32 bits
+
+    Total packet length: 5*4 = 20 bytes
+
+    HEADER = 0x11111111
+    FOOTER = 0x22222222
+    */
+    uint32_t header = 0x11111111;
+    uint32_t footer = 0x22222222;
+    win32tcpReceive2(self.logSocket, self.tcpLoggingReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
+    int index = 0;
+    while (self.tcpLoggingReceiveBuffer[index] == 0x11 && self.tcpLoggingReceiveBuffer[index + 1] == 0x11 && self.tcpLoggingReceiveBuffer[index + 2] == 0x11 && self.tcpLoggingReceiveBuffer[index + 3] == 0x11) {
+        index += 4;
+        uint32_t varSlot = ((uint32_t) self.tcpLoggingReceiveBuffer[index + 3]) << 24 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 2]) << 16 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 1]) << 8 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 0]);
+        index += 4;
+        uint32_t timestamp = ((uint32_t) self.tcpLoggingReceiveBuffer[index + 3]) << 24 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 2]) << 16 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 1]) << 8 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 0]);
+        index += 4;
+        uint32_t data = ((uint32_t) self.tcpLoggingReceiveBuffer[index + 3]) << 24 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 2]) << 16 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 1]) << 8 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 0]);
+        index += 4;
+        if (self.tcpLoggingReceiveBuffer[index] == 0x22 && self.tcpLoggingReceiveBuffer[index + 1] == 0x22 && self.tcpLoggingReceiveBuffer[index + 2] == 0x22 && self.tcpLoggingReceiveBuffer[index + 3] == 0x22) {
+            // printf("packet %d:\nvar_slot: %u\ntimestamp: %u\ndata: %X\n", index - 16, varSlot, timestamp, data);
+            /* add value to data */
+            float dataValue = *(float *) &data;
+            // printf("data: %f\n", dataValue);
+            list_append(self.data -> data[dataIndex].r, (unitype) (double) dataValue, 'd');
+            // list_print(self.data -> data[dataIndex].r);
+            index += 4;
+        } else {
+            printf("bad packet at index %d\n", index);
+            index += 4;
+        }
+    }
+    // char *converted = convertToHex(self.tcpLoggingReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
+    // printf("received %s\n", converted);
+    // free(converted);
 }
 
-void *commsThreadFunction(void* arg) {
+void *commsThreadFunction(void *arg) {
+    int tps = *(int *) arg;
+    uint64_t tick = 0;
+    clock_t start;
+    clock_t end;
     /* populate real data */
     while (1) {
+        start = clock();
         if (self.commsEnabled == 1) {
             for (int i = 0; i < self.logSlots -> length; i++) {
                 if (self.logSlots -> data[i].i != -1) {
-                    commsGetData();
+                    commsGetData(i);
                     // list_append(self.data -> data[i].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
                     break; // only do one
                 }
             }
         }
+        end = clock();
+        while ((double) (end - start) / CLOCKS_PER_SEC < (1.0 / tps)) {
+            end = clock();
+        }
+        tick++;
     }
     return NULL;
 } 
@@ -307,9 +353,9 @@ void populateLoggedVariables() {
     commsCommand("log info");
     /* parse command */
     int maxSlots = 0;
-    sscanf(self.tcpReceiveBuffer + 31, "%d", &maxSlots);
+    sscanf(self.tcpAsciiReceiveBuffer + 31, "%d", &maxSlots);
     printf("max slots: %d\n", maxSlots);
-    char *testString = strtok(self.tcpReceiveBuffer, "\n");
+    char *testString = strtok(self.tcpAsciiReceiveBuffer, "\n");
     int stringHold = 0;
     int slotNum = 0;
     while (testString != NULL) {
@@ -365,7 +411,7 @@ void populateLoggedVariables() {
             sprintf(command, "log stream start %d %d", self.logSlots -> data[i].i, self.logSocketID);
             printf("sending command: %s\n", command);
             commsCommand(command);
-            printf("response: %s\n", self.tcpReceiveBuffer);
+            printf("response: %s\n", self.tcpAsciiReceiveBuffer);
             break; // only do one
         }
     }
@@ -375,7 +421,7 @@ void populateLoggedVariables() {
 void init() { // initialises the empv variabes (shared state)
 /* comms */
     for (int i = 0; i < TCP_RECEIVE_BUFFER_LENGTH; i++) {
-        self.tcpReceiveBuffer[i] = 0;
+        self.tcpAsciiReceiveBuffer[i] = 0;
     }
 /* color */
     double themeCopy[48] = {
@@ -1448,7 +1494,6 @@ int main(int argc, char *argv[]) {
             socketID[1] = *receiveBuffer;
         }
         initComms(sockets[0], socketID[0], sockets[1], socketID[1]);
-        pthread_create(&self.commsThread, NULL, commsThreadFunction, NULL);
     }
 
     int tps = 120; // ticks per second (locked to fps in this case)
@@ -1459,6 +1504,10 @@ int main(int argc, char *argv[]) {
 
     init(); // initialise empv
     turtleBgColor(self.themeColors[self.theme + 0], self.themeColors[self.theme + 1], self.themeColors[self.theme + 2]);
+
+    if (self.commsEnabled == 1) {
+        pthread_create(&self.commsThread, NULL, commsThreadFunction, &tps);
+    }
 
     while (turtle.close == 0) { // main loop
         start = clock();
