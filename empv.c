@@ -306,10 +306,10 @@ void commsGetData(int dataIndex) {
             // printf("packet %d:\nvar_slot: %u\ntimestamp: %u\ndata: %X\n", index - 16, varSlot, timestamp, data);
             /* add value to data */
             float dataValue = *(float *) &data;
-            // printf("data: %f\n", dataValue);
+            printf("data: %f\n", dataValue);
             list_append(self.data -> data[dataIndex].r, (unitype) (double) dataValue, 'd');
             // list_print(self.data -> data[dataIndex].r);
-            index += 4;
+            // index += 4;
         } else {
             printf("bad packet at index %d\n", index);
             index += 4;
