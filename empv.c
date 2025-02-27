@@ -13,6 +13,7 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 #include "include/win32Tools.h"
 #include "include/fft.h"
 #include <time.h>
+#include <pthread.h>
 
 #define TCP_RECEIVE_BUFFER_LENGTH 2048
 
@@ -97,6 +98,7 @@ typedef struct { // oscilloscope view
 
 typedef struct { // all the empv shared state is here
     /* comms */
+    pthread_t commsThread;
     char commsEnabled;
     SOCKET *cmdSocket;
     int cmdSocketID;
@@ -278,9 +280,25 @@ void commsCommand(char *cmd) {
 void commsGetData() {
     win32tcpReceive2(self.logSocket, self.tcpReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
     char *converted = convertToHex(self.tcpReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
-    // printf("received %s\n", converted);
+    printf("received %s\n", converted);
     free(converted);
 }
+
+void *commsThreadFunction(void* arg) {
+    /* populate real data */
+    while (1) {
+        if (self.commsEnabled == 1) {
+            for (int i = 0; i < self.logSlots -> length; i++) {
+                if (self.logSlots -> data[i].i != -1) {
+                    commsGetData();
+                    // list_append(self.data -> data[i].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
+                    break; // only do one
+                }
+            }
+        }
+    }
+    return NULL;
+} 
 
 void populateLoggedVariables() {
     if (self.commsEnabled == 0) {
@@ -1430,6 +1448,7 @@ int main(int argc, char *argv[]) {
             socketID[1] = *receiveBuffer;
         }
         initComms(sockets[0], socketID[0], sockets[1], socketID[1]);
+        pthread_create(&self.commsThread, NULL, commsThreadFunction, NULL);
     }
 
     int tps = 120; // ticks per second (locked to fps in this case)
@@ -1449,17 +1468,6 @@ int main(int argc, char *argv[]) {
         double sinValue3 = sin(tick * 1.1) * 12.5;
         // list_append(self.data -> data[0].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
         list_append(self.data -> data[0].r, (unitype) (sinValue1), 'd');
-        /* populate real data */
-        if (self.commsEnabled == 1) {
-            for (int i = 0; i < self.logSlots -> length; i++) {
-                if (self.logSlots -> data[i].i != -1) {
-                    commsGetData();
-                    // list_append(self.data -> data[i].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
-                    break; // only do one
-                }
-            }
-        }
-        
         utilLoop();
         turtleGetMouseCoords(); // get the mouse coordinates (turtle.mouseX, turtle.mouseY)
         turtleClear();
