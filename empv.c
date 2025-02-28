@@ -292,7 +292,10 @@ void commsGetData(int dataIndex) {
     */
     uint32_t header = 0x11111111;
     uint32_t footer = 0x22222222;
+    int packetLength = 20;
+    memset(self.tcpLoggingReceiveBuffer, 0, TCP_RECEIVE_BUFFER_LENGTH);
     win32tcpReceive2(self.logSocket, self.tcpLoggingReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
+    // self.tcpLoggingReceiveBuffer[packetLength] = '\0';
     int index = 0;
     while (self.tcpLoggingReceiveBuffer[index] == 0x11 && self.tcpLoggingReceiveBuffer[index + 1] == 0x11 && self.tcpLoggingReceiveBuffer[index + 2] == 0x11 && self.tcpLoggingReceiveBuffer[index + 3] == 0x11) {
         index += 4;
@@ -306,10 +309,10 @@ void commsGetData(int dataIndex) {
             // printf("packet %d:\nvar_slot: %u\ntimestamp: %u\ndata: %X\n", index - 16, varSlot, timestamp, data);
             /* add value to data */
             float dataValue = *(float *) &data;
-            printf("data: %f\n", dataValue);
+            // printf("data: %f\n", dataValue);
             list_append(self.data -> data[dataIndex].r, (unitype) (double) dataValue, 'd');
             // list_print(self.data -> data[dataIndex].r);
-            // index += 4;
+            index += 4;
         } else {
             printf("bad packet at index %d\n", index);
             index += 4;
@@ -332,16 +335,15 @@ void *commsThreadFunction(void *arg) {
             for (int i = 0; i < self.logSlots -> length; i++) {
                 if (self.logSlots -> data[i].i != -1) {
                     commsGetData(i);
-                    // list_append(self.data -> data[i].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
                     break; // only do one
                 }
             }
         }
-        end = clock();
-        while ((double) (end - start) / CLOCKS_PER_SEC < (1.0 / tps)) {
-            end = clock();
-        }
-        tick++;
+        // end = clock();
+        // while ((double) (end - start) / CLOCKS_PER_SEC < (1.0 / tps)) {
+        //     end = clock();
+        // }
+        // tick++;
     }
     return NULL;
 } 
@@ -353,8 +355,7 @@ void populateLoggedVariables() {
     commsCommand("log info");
     /* parse command */
     int maxSlots = 0;
-    sscanf(self.tcpAsciiReceiveBuffer + 31, "%d", &maxSlots);
-    printf("max slots: %d\n", maxSlots);
+    // sscanf(self.tcpAsciiReceiveBuffer + 31, "%d", &maxSlots);
     char *testString = strtok(self.tcpAsciiReceiveBuffer, "\n");
     int stringHold = 0;
     int slotNum = 0;
@@ -396,8 +397,13 @@ void populateLoggedVariables() {
                 sscanf(testString + 5, "%d", &slotNum);
                 stringHold = 5;
             }
+            if (strcmp(testString, "Max Slots") || strcmp(testString, "Max Slots:")) {
+                testString[len - 3] = savedChar;
+                sscanf(testString + 10, "%d", &maxSlots);
+            }
         }
     }
+    printf("Max Logging Slots: %d\n", maxSlots);
     /* clear all streams */
     for (int i = 0; i < maxSlots; i++) {
         char command[128];
@@ -409,9 +415,7 @@ void populateLoggedVariables() {
         if (self.logSlots -> data[i].i != -1) {
             char command[128];
             sprintf(command, "log stream start %d %d", self.logSlots -> data[i].i, self.logSocketID);
-            printf("sending command: %s\n", command);
             commsCommand(command);
-            printf("response: %s\n", self.tcpAsciiReceiveBuffer);
             break; // only do one
         }
     }
@@ -502,7 +506,7 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[oscIndex].switches = list_init();
     self.windows[oscIndex].dropdowns = list_init();
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("X Scale", &self.osc[0].windowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[oscIndex].windowTop, 8, 4, 1024), 'p');
-    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[0].topBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[oscIndex].windowTop, 8, 50, 10000), 'p');
+    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[0].topBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[oscIndex].windowTop, 8, 1, 10000), 'p');
     list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Pause", &self.osc[0].stop, WINDOW_OSC, 1, -100 - self.windows[oscIndex].windowTop, 8), 'p');
     list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Trigger", &self.osc[0].trigger.triggerType, WINDOW_OSC, 1, -130 - self.windows[oscIndex].windowTop, 8), 'p');
     list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, WINDOW_OSC, 1, -7, 8), 'p');
@@ -1027,6 +1031,7 @@ void renderOscData(int oscIndex) {
     /* set left and right bounds */
     if (!self.osc[oscIndex].stop) { 
         if (self.osc[oscIndex].trigger.triggerType == TRIGGER_NONE) {
+            list_clear(self.osc[oscIndex].trigger.lastTriggerIndex);
             setBoundsNoTrigger(oscIndex);
         } else {
             self.osc[oscIndex].rightBound = self.osc[oscIndex].trigger.triggerIndex + self.osc[oscIndex].windowSize / 2;
@@ -1041,6 +1046,7 @@ void renderOscData(int oscIndex) {
             /* identify triggerIndex */
             int dataLength = self.data -> data[self.osc[oscIndex].dataIndex].r -> length;
             if (self.osc[oscIndex].trigger.lastTriggerIndex -> length > 0 && self.osc[oscIndex].trigger.lastTriggerIndex -> data[0].i + self.osc[oscIndex].windowSize / 2 <= dataLength) {
+                /* trigger takes some time to kick in */
                 self.osc[oscIndex].trigger.triggerIndex = self.osc[oscIndex].trigger.lastTriggerIndex -> data[0].i;
                 list_delete(self.osc[oscIndex].trigger.lastTriggerIndex, 0);
             }
