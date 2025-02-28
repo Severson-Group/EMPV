@@ -289,7 +289,6 @@ void commsGetData(int logSlotIndex) {
     uint8_t tcpLoggingReceiveBuffer[TCP_RECEIVE_BUFFER_LENGTH] = {0};
     int dataIndex = self.logSlots -> data[logSlotIndex].i + 1;
     win32tcpReceive2(self.logSockets -> data[logSlotIndex].p, tcpLoggingReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
-    // self.tcpLoggingReceiveBuffer[packetLength] = '\0';
     int index = 0;
     while (tcpLoggingReceiveBuffer[index] == 0x11 && tcpLoggingReceiveBuffer[index + 1] == 0x11 && tcpLoggingReceiveBuffer[index + 2] == 0x11 && tcpLoggingReceiveBuffer[index + 3] == 0x11) {
         index += 4;
@@ -303,9 +302,7 @@ void commsGetData(int logSlotIndex) {
             // printf("packet %d:\nvar_slot: %u\ntimestamp: %u\ndata: %X\n", index - 16, varSlot, timestamp, data);
             /* add value to data */
             float dataValue = *(float *) &data;
-            // printf("data: %f\n", dataValue);
             list_append(self.data -> data[dataIndex].r, (unitype) (double) dataValue, 'd');
-            // list_print(self.data -> data[dataIndex].r);
             index += 4;
         } else {
             printf("bad packet at index %d\n", index);
