@@ -13,7 +13,7 @@ https://learn.microsoft.com/en-us/windows/win32/winsock/complete-client-code
 #include <shobjidl.h>
 #include <string.h>
 
-#define WIN32TCP_NUM_SOCKETS 10
+#define WIN32TCP_NUM_SOCKETS 32
 
 typedef struct {
     char *address;

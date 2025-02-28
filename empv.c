@@ -16,6 +16,7 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 #include <pthread.h>
 
 #define TCP_RECEIVE_BUFFER_LENGTH 2048
+#define MAX_LOGGING_SOCKETS       32
 
 #define DIAL_LINEAR     0
 #define DIAL_LOG        1
@@ -86,7 +87,7 @@ typedef struct {
 
 typedef struct { // oscilloscope view
     trigger_settings_t trigger;
-    int dataIndex;
+    int dataIndex; // index of data list for oscilloscope source
     int leftBound; // left bound (index in data list)
     int rightBound; // right bound (index in data list)
     double bottomBound; // bottom bound (y value)
@@ -98,18 +99,18 @@ typedef struct { // oscilloscope view
 
 typedef struct { // all the empv shared state is here
     /* comms */
-    pthread_t commsThread;
+    pthread_t commsThread[MAX_LOGGING_SOCKETS];
     char commsEnabled;
     SOCKET *cmdSocket;
     int cmdSocketID;
-    SOCKET *logSocket;
-    int logSocketID;
     uint8_t tcpAsciiReceiveBuffer[TCP_RECEIVE_BUFFER_LENGTH];
-    uint8_t tcpLoggingReceiveBuffer[TCP_RECEIVE_BUFFER_LENGTH];
+    int maxSlots; // maximum logging slots on AMDC
     /* general */
         list_t *data; // a list of all data collected through ethernet
-        list_t *logVariables; // a list of variables logged on the AMDC
-        list_t *logSlots; // list of slot numbers synced with logVariables
+        list_t *logVariables; // a list of variable names logged on the AMDC
+        list_t *logSlots; // list of slot numbers synced with logVariables (Slot 0: X)
+        list_t *logSockets; // list of socket pointers
+        list_t *logSocketIDs; // list of socket IDs on the AMDC
         list_t *windowRender; // which order to render windows in
         window_t windows[NUM_WINDOWS]; // window variables
         /* mouse variables */
@@ -247,14 +248,6 @@ char *convertToHex(unsigned char *input, int len) {
     return output;
 }
 
-void initComms(SOCKET *cmdSocket, int cmdID, SOCKET *logSocket, int logID) {
-    self.commsEnabled = 1;
-    self.cmdSocket = cmdSocket;
-    self.cmdSocketID = cmdID;
-    self.logSocket = logSocket;
-    self.logSocketID = logID;
-}
-
 void commsCommand(char *cmd) {
     if (self.commsEnabled == 0) {
         return;
@@ -278,7 +271,7 @@ void commsCommand(char *cmd) {
     // printf("received %s\n", self.tcpAsciiReceiveBuffer);
 }
 
-void commsGetData(int dataIndex) {
+void commsGetData(int logSlotIndex) {
     /*
     Per the AMDC C-code,
 
@@ -293,19 +286,20 @@ void commsGetData(int dataIndex) {
     uint32_t header = 0x11111111;
     uint32_t footer = 0x22222222;
     int packetLength = 20;
-    memset(self.tcpLoggingReceiveBuffer, 0, TCP_RECEIVE_BUFFER_LENGTH);
-    win32tcpReceive2(self.logSocket, self.tcpLoggingReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
+    uint8_t tcpLoggingReceiveBuffer[TCP_RECEIVE_BUFFER_LENGTH] = {0};
+    int dataIndex = self.logSlots -> data[logSlotIndex].i + 1;
+    win32tcpReceive2(self.logSockets -> data[logSlotIndex].p, tcpLoggingReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
     // self.tcpLoggingReceiveBuffer[packetLength] = '\0';
     int index = 0;
-    while (self.tcpLoggingReceiveBuffer[index] == 0x11 && self.tcpLoggingReceiveBuffer[index + 1] == 0x11 && self.tcpLoggingReceiveBuffer[index + 2] == 0x11 && self.tcpLoggingReceiveBuffer[index + 3] == 0x11) {
+    while (tcpLoggingReceiveBuffer[index] == 0x11 && tcpLoggingReceiveBuffer[index + 1] == 0x11 && tcpLoggingReceiveBuffer[index + 2] == 0x11 && tcpLoggingReceiveBuffer[index + 3] == 0x11) {
         index += 4;
-        uint32_t varSlot = ((uint32_t) self.tcpLoggingReceiveBuffer[index + 3]) << 24 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 2]) << 16 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 1]) << 8 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 0]);
+        uint32_t varSlot = ((uint32_t) tcpLoggingReceiveBuffer[index + 3]) << 24 | ((uint32_t) tcpLoggingReceiveBuffer[index + 2]) << 16 | ((uint32_t) tcpLoggingReceiveBuffer[index + 1]) << 8 | ((uint32_t) tcpLoggingReceiveBuffer[index + 0]);
         index += 4;
-        uint32_t timestamp = ((uint32_t) self.tcpLoggingReceiveBuffer[index + 3]) << 24 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 2]) << 16 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 1]) << 8 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 0]);
+        uint32_t timestamp = ((uint32_t) tcpLoggingReceiveBuffer[index + 3]) << 24 | ((uint32_t) tcpLoggingReceiveBuffer[index + 2]) << 16 | ((uint32_t) tcpLoggingReceiveBuffer[index + 1]) << 8 | ((uint32_t) tcpLoggingReceiveBuffer[index + 0]);
         index += 4;
-        uint32_t data = ((uint32_t) self.tcpLoggingReceiveBuffer[index + 3]) << 24 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 2]) << 16 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 1]) << 8 | ((uint32_t) self.tcpLoggingReceiveBuffer[index + 0]);
+        uint32_t data = ((uint32_t) tcpLoggingReceiveBuffer[index + 3]) << 24 | ((uint32_t) tcpLoggingReceiveBuffer[index + 2]) << 16 | ((uint32_t) tcpLoggingReceiveBuffer[index + 1]) << 8 | ((uint32_t) tcpLoggingReceiveBuffer[index + 0]);
         index += 4;
-        if (self.tcpLoggingReceiveBuffer[index] == 0x22 && self.tcpLoggingReceiveBuffer[index + 1] == 0x22 && self.tcpLoggingReceiveBuffer[index + 2] == 0x22 && self.tcpLoggingReceiveBuffer[index + 3] == 0x22) {
+        if (tcpLoggingReceiveBuffer[index] == 0x22 && tcpLoggingReceiveBuffer[index + 1] == 0x22 && tcpLoggingReceiveBuffer[index + 2] == 0x22 && tcpLoggingReceiveBuffer[index + 3] == 0x22) {
             // printf("packet %d:\nvar_slot: %u\ntimestamp: %u\ndata: %X\n", index - 16, varSlot, timestamp, data);
             /* add value to data */
             float dataValue = *(float *) &data;
@@ -318,32 +312,20 @@ void commsGetData(int dataIndex) {
             index += 4;
         }
     }
-    // char *converted = convertToHex(self.tcpLoggingReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
+    // char *converted = convertToHex(tcpLoggingReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
     // printf("received %s\n", converted);
     // free(converted);
 }
 
 void *commsThreadFunction(void *arg) {
-    int tps = *(int *) arg;
-    uint64_t tick = 0;
-    clock_t start;
-    clock_t end;
+    int index = *(int *) arg;
     /* populate real data */
     while (1) {
-        start = clock();
         if (self.commsEnabled == 1) {
-            for (int i = 0; i < self.logSlots -> length; i++) {
-                if (self.logSlots -> data[i].i != -1) {
-                    commsGetData(i);
-                    break; // only do one
-                }
+            if (self.logSlots -> data[index].i != -1) {
+                commsGetData(index);
             }
         }
-        // end = clock();
-        // while ((double) (end - start) / CLOCKS_PER_SEC < (1.0 / tps)) {
-        //     end = clock();
-        // }
-        // tick++;
     }
     return NULL;
 } 
@@ -353,9 +335,8 @@ void populateLoggedVariables() {
         return;
     }
     commsCommand("log info");
+    self.maxSlots = 0;
     /* parse command */
-    int maxSlots = 0;
-    // sscanf(self.tcpAsciiReceiveBuffer + 31, "%d", &maxSlots);
     char *testString = strtok(self.tcpAsciiReceiveBuffer, "\n");
     int stringHold = 0;
     int slotNum = 0;
@@ -399,31 +380,17 @@ void populateLoggedVariables() {
             }
             if (strcmp(testString, "Max Slots") || strcmp(testString, "Max Slots:")) {
                 testString[len - 3] = savedChar;
-                sscanf(testString + 10, "%d", &maxSlots);
+                sscanf(testString + 10, "%d", &self.maxSlots);
             }
         }
     }
-    printf("Max Logging Slots: %d\n", maxSlots);
-    /* clear all streams */
-    for (int i = 0; i < maxSlots; i++) {
-        char command[128];
-        sprintf(command, "log stream stop %d %d", i, self.logSocketID);
-        commsCommand(command);
-    }
-    /* start stream for logged variables */
-    for (int i = 0; i < self.logSlots -> length; i++) {
-        if (self.logSlots -> data[i].i != -1) {
-            char command[128];
-            sprintf(command, "log stream start %d %d", self.logSlots -> data[i].i, self.logSocketID);
-            commsCommand(command);
-            break; // only do one
-        }
-    }
+    printf("Max Logging Slots: %d\n", self.maxSlots);
 }
 
 /* initialise global state */
 void init() { // initialises the empv variabes (shared state)
 /* comms */
+    self.maxSlots = 0;
     for (int i = 0; i < TCP_RECEIVE_BUFFER_LENGTH; i++) {
         self.tcpAsciiReceiveBuffer[i] = 0;
     }
@@ -461,9 +428,14 @@ void init() { // initialises the empv variabes (shared state)
     /* data */
     self.logVariables = list_init();
     self.logSlots = list_init();
+    self.logSockets = list_init();
+    self.logSocketIDs = list_init();
     list_append(self.logVariables, (unitype) "Demo", 's');
     list_append(self.logSlots, (unitype) -1, 'i');
+    list_append(self.logSockets, (unitype) NULL, 'p');
+    list_append(self.logSocketIDs, (unitype) -1, 'i');
     populateLoggedVariables(); // gather logged variables
+    printf("logVariables: %d\n", self.logVariables -> length);
     self.data = list_init();
     for (int i = 0; i < self.logVariables -> length; i++) {
         list_append(self.data, (unitype) list_init(), 'r');
@@ -1479,27 +1451,16 @@ int main(int argc, char *argv[]) {
         if (win32tcpInit("192.168.1.10", "7")) {
             printf("Failed to connect to %s, ensure AMDC is plugged in and listening on port %s\n", win32Socket.address, win32Socket.port);
         }
-        SOCKET *sockets[2] = {NULL, NULL};
-        int socketID[2] = {-1, -1};
-        sockets[0] = win32tcpCreateSocket();
-        if (sockets[0] != NULL) {
+        self.cmdSocket = win32tcpCreateSocket();
+        if (self.cmdSocket != NULL) {
             unsigned char receiveBuffer[10] = {0};
-            win32tcpReceive(sockets[0], receiveBuffer, 1);
+            win32tcpReceive(self.cmdSocket, receiveBuffer, 1);
             unsigned char amdc_cmd_id[2] = {12, 34};
-            win32tcpSend(sockets[0], amdc_cmd_id, 2);
+            win32tcpSend(self.cmdSocket, amdc_cmd_id, 2);
             printf("Successfully created AMDC cmd socket with id %d\n", *receiveBuffer);
-            socketID[0] = *receiveBuffer;
+            self.cmdSocketID = *receiveBuffer;
         }
-        sockets[1] = win32tcpCreateSocket();
-        if (sockets[1] != NULL) {
-            unsigned char receiveBuffer[10] = {0};
-            win32tcpReceive(sockets[1], receiveBuffer, 1);
-            unsigned char amdc_log_id[2] = {56, 78};
-            win32tcpSend(sockets[1], amdc_log_id, 2);
-            printf("Successfully created AMDC log socket with id %d\n", *receiveBuffer);
-            socketID[1] = *receiveBuffer;
-        }
-        initComms(sockets[0], socketID[0], sockets[1], socketID[1]);
+        self.commsEnabled = 1;
     }
 
     int tps = 120; // ticks per second (locked to fps in this case)
@@ -1510,9 +1471,42 @@ int main(int argc, char *argv[]) {
 
     init(); // initialise empv
     turtleBgColor(self.themeColors[self.theme + 0], self.themeColors[self.theme + 1], self.themeColors[self.theme + 2]);
-
+    /* populate sockets */
+    int populatedSlots = self.logVariables -> length - 1; // subtract demo data
+    printf("populated slots: %d\n", populatedSlots);
     if (self.commsEnabled == 1) {
-        pthread_create(&self.commsThread, NULL, commsThreadFunction, &tps);
+        for (int i = 0; i < populatedSlots; i++) {
+            SOCKET *sptr = win32tcpCreateSocket();
+            if (sptr != NULL) {
+                unsigned char receiveBuffer[10] = {0};
+                win32tcpReceive(sptr, receiveBuffer, 1);
+                unsigned char amdc_log_id[2] = {56, 78};
+                win32tcpSend(sptr, amdc_log_id, 2);
+                printf("Successfully created AMDC log socket with id %d\n", *receiveBuffer);
+                int sID = *receiveBuffer;
+                list_append(self.logSockets, (unitype) (void *) sptr, 'p');
+                list_append(self.logSocketIDs, (unitype) sID, 'i');
+            }
+        }
+        int threadArg[populatedSlots];
+        for (int i = 0; i < populatedSlots; i++) {
+            threadArg[i] = i + 1;
+            pthread_create(&self.commsThread[i], NULL, commsThreadFunction, &threadArg[i]);
+        }
+        /* clear all streams */
+        for (int i = 0; i < self.maxSlots; i++) {
+            char command[128];
+            sprintf(command, "log stream stop %d %d", i, self.logSocketIDs -> data[i].i);
+            commsCommand(command);
+        }
+        /* start stream for logged variables */
+        for (int i = 0; i < populatedSlots; i++) {
+            if (self.logSlots -> data[i + 1].i != -1) {
+                char command[128];
+                sprintf(command, "log stream start %d %d", self.logSlots -> data[i + 1].i, self.logSocketIDs -> data[i + 1].i);
+                commsCommand(command);
+            }
+        }
     }
 
     while (turtle.close == 0) { // main loop
