@@ -435,7 +435,6 @@ void init() { // initialises the empv variabes (shared state)
     list_append(self.logSockets, (unitype) NULL, 'p');
     list_append(self.logSocketIDs, (unitype) -1, 'i');
     populateLoggedVariables(); // gather logged variables
-    printf("logVariables: %d\n", self.logVariables -> length);
     self.data = list_init();
     for (int i = 0; i < self.logVariables -> length; i++) {
         list_append(self.data, (unitype) list_init(), 'r');
@@ -1473,7 +1472,6 @@ int main(int argc, char *argv[]) {
     turtleBgColor(self.themeColors[self.theme + 0], self.themeColors[self.theme + 1], self.themeColors[self.theme + 2]);
     /* populate sockets */
     int populatedSlots = self.logVariables -> length - 1; // subtract demo data
-    printf("populated slots: %d\n", populatedSlots);
     if (self.commsEnabled == 1) {
         for (int i = 0; i < populatedSlots; i++) {
             SOCKET *sptr = win32tcpCreateSocket();
