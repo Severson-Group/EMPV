@@ -235,7 +235,7 @@ void fft_list_wrapper(list_t *samples, list_t *output) {
     fft(complexSamples, dimension, scratch);
     /* parse */
     for (int i = 0; i < dimension; i++) {
-        double fftSample = complexSamples[i].Re;
+        double fftSample = sqrt(complexSamples[i].Re * complexSamples[i].Re + complexSamples[i].Im * complexSamples[i].Im);
         list_append(output, (unitype) fftSample, 'd');
     }
 }
