@@ -235,7 +235,7 @@ void fft_list_wrapper(list_t *samples, list_t *output) {
     fft(complexSamples, dimension, scratch);
     /* parse */
     for (int i = 0; i < dimension; i++) {
-        double fftSample = sqrt(complexSamples[i].Re * complexSamples[i].Re + complexSamples[i].Im * complexSamples[i].Im);
+        double fftSample = sqrt(complexSamples[i].Re * complexSamples[i].Re + complexSamples[i].Im * complexSamples[i].Im) / self.osc[0].windowSize;
         list_append(output, (unitype) fftSample, 'd');
     }
 }
@@ -486,7 +486,7 @@ void init() { // initialises the empv variabes (shared state)
     self.freqLeftBound = 0;
     self.freqRightBound = 0;
     self.freqZoom = 1.0;
-    self.topFreq = 5000;
+    self.topFreq = 20;
     int freqIndex = ilog2(WINDOW_FREQ);
     strcpy(self.windows[freqIndex].title, "Frequency");
     self.windows[freqIndex].windowCoords[0] = 2;
@@ -504,7 +504,7 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[freqIndex].dials = list_init();
     self.windows[freqIndex].switches = list_init();
     self.windows[freqIndex].dropdowns = list_init();
-    list_append(self.windows[freqIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.topFreq, WINDOW_FREQ, DIAL_EXP, 1, -25 - self.windows[freqIndex].windowTop, 8, 500, 100000), 'p');
+    list_append(self.windows[freqIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.topFreq, WINDOW_FREQ, DIAL_EXP, 1, -25 - self.windows[freqIndex].windowTop, 8, 1, 500), 'p');
     /* editor */
     int editorIndex = ilog2(WINDOW_EDITOR);
     strcpy(self.windows[editorIndex].title, "Editor");
