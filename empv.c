@@ -11,7 +11,6 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 #include "include/popup.h"
 #include "include/win32tcp.h"
 #include "include/win32Tools.h"
-#include "include/fft.h"
 #include "include/kissFFT.h"
 #include <time.h>
 #include <pthread.h>
@@ -225,19 +224,21 @@ double angleBetween(double x1, double y1, double x2, double y2) {
 }
 
 void fft_list_wrapper(list_t *samples, list_t *output) {
-    /* convert to complex */
     int dimension = samples -> length;
-    complex_t complexSamples[dimension];
+    kiss_fft_cfg cfg = kiss_fft_alloc(dimension, 0, NULL, NULL);
+    /* convert to complex */
+    kiss_fft_cpx complexSamples[dimension];
     for (int i = 0; i < dimension; i++) {
-        complexSamples[i].Re = samples -> data[i].d;
-        complexSamples[i].Im = 0.0f;
+        complexSamples[i].r = samples -> data[i].d;
+        complexSamples[i].i = 0.0f;
     }
-    complex_t scratch[dimension];
-    fft(complexSamples, dimension, scratch);
+    kiss_fft_cpx kissOutput[dimension];
+    kiss_fft(cfg, complexSamples, kissOutput);
+    kiss_fft_free(cfg);
     /* parse */
     for (int i = 0; i < dimension; i++) {
-        double fftSample = sqrt(complexSamples[i].Re * complexSamples[i].Re + complexSamples[i].Im * complexSamples[i].Im) / self.osc[0].windowSize; // divide by closest rounded down power of 2 instead of window size
-        double fftPhase = atan(complexSamples[i].Im / complexSamples[i].Re);
+        double fftSample = sqrt(kissOutput[i].r * kissOutput[i].r + kissOutput[i].i * kissOutput[i].i) / self.osc[0].windowSize; // divide by closest rounded down power of 2 instead of window size
+        double fftPhase = atan(kissOutput[i].i / kissOutput[i].r);
         list_append(output, (unitype) fftSample, 'd');
     }
 }
