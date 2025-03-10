@@ -12,6 +12,7 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 #include "include/win32tcp.h"
 #include "include/win32Tools.h"
 #include "include/fft.h"
+#include "include/kissFFT.h"
 #include <time.h>
 #include <pthread.h>
 
@@ -235,7 +236,8 @@ void fft_list_wrapper(list_t *samples, list_t *output) {
     fft(complexSamples, dimension, scratch);
     /* parse */
     for (int i = 0; i < dimension; i++) {
-        double fftSample = sqrt(complexSamples[i].Re * complexSamples[i].Re + complexSamples[i].Im * complexSamples[i].Im) / self.osc[0].windowSize;
+        double fftSample = sqrt(complexSamples[i].Re * complexSamples[i].Re + complexSamples[i].Im * complexSamples[i].Im) / self.osc[0].windowSize; // divide by closest rounded down power of 2 instead of window size
+        double fftPhase = atan(complexSamples[i].Im / complexSamples[i].Re);
         list_append(output, (unitype) fftSample, 'd');
     }
 }
