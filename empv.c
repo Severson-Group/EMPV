@@ -225,6 +225,9 @@ double angleBetween(double x1, double y1, double x2, double y2) {
 
 void fft_list_wrapper(list_t *samples, list_t *output) {
     int dimension = samples -> length;
+    if (dimension <= 0) {
+        return;
+    }
     kiss_fft_cfg cfg = kiss_fft_alloc(dimension, 0, NULL, NULL);
     /* convert to complex */
     kiss_fft_cpx complexSamples[dimension];
@@ -232,13 +235,12 @@ void fft_list_wrapper(list_t *samples, list_t *output) {
         complexSamples[i].r = samples -> data[i].d;
         complexSamples[i].i = 0.0f;
     }
-    kiss_fft_cpx kissOutput[dimension];
-    kiss_fft(cfg, complexSamples, kissOutput);
+    kiss_fft(cfg, complexSamples, complexSamples);
     kiss_fft_free(cfg);
     /* parse */
     for (int i = 0; i < dimension; i++) {
-        double fftSample = sqrt(kissOutput[i].r * kissOutput[i].r + kissOutput[i].i * kissOutput[i].i) / self.osc[0].windowSize; // divide by closest rounded down power of 2 instead of window size
-        double fftPhase = atan(kissOutput[i].i / kissOutput[i].r);
+        double fftSample = sqrt(complexSamples[i].r * complexSamples[i].r + complexSamples[i].i * complexSamples[i].i) / self.osc[0].windowSize; // divide by closest rounded down power of 2 instead of window size
+        double fftPhase = atan(complexSamples[i].i / complexSamples[i].r);
         list_append(output, (unitype) fftSample, 'd');
     }
 }
