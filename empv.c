@@ -985,8 +985,10 @@ void renderWindow(int window) {
     }
 }
 
-void setBoundsNoTrigger(int oscIndex) {
-    self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex].r -> length;
+void setBoundsNoTrigger(int oscIndex, int stopped) {
+    if (!stopped) {
+        self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex].r -> length;
+    }
     if (self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound < self.osc[oscIndex].windowSize) {
         self.osc[oscIndex].leftBound = self.osc[oscIndex].rightBound - self.osc[oscIndex].windowSize;
         if (self.osc[oscIndex].leftBound < 0) {
@@ -1002,38 +1004,39 @@ void renderOscData(int oscIndex) {
     int windowIndex = ilog2(WINDOW_OSC);
     self.osc[oscIndex].bottomBound = self.osc[oscIndex].topBound * -1;
     /* set left and right bounds */
-    if (!self.osc[oscIndex].stop) { 
+    if (!self.osc[oscIndex].stop) {
         if (self.osc[oscIndex].trigger.triggerType == TRIGGER_NONE) {
             list_clear(self.osc[oscIndex].trigger.lastTriggerIndex);
-            setBoundsNoTrigger(oscIndex);
+            setBoundsNoTrigger(oscIndex, 0);
         } else {
-            self.osc[oscIndex].rightBound = self.osc[oscIndex].trigger.triggerIndex + self.osc[oscIndex].windowSize / 2;
+            self.osc[oscIndex].rightBound = self.osc[oscIndex].trigger.triggerIndex;
             if (self.osc[oscIndex].rightBound > self.data -> data[self.osc[oscIndex].dataIndex].r -> length) {
                 self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex].r -> length;
             }
-            self.osc[oscIndex].leftBound = self.osc[oscIndex].trigger.triggerIndex - self.osc[oscIndex].windowSize / 2;
+            self.osc[oscIndex].leftBound = self.osc[oscIndex].trigger.triggerIndex - self.osc[oscIndex].windowSize;
             if (self.osc[oscIndex].leftBound < 0) {
                 self.osc[oscIndex].leftBound = 0;
             }
 
-            /* identify triggerIndex */
+            /* identify triggerIndex (trigger index is right side of window) */
             int dataLength = self.data -> data[self.osc[oscIndex].dataIndex].r -> length;
-            if (self.osc[oscIndex].trigger.lastTriggerIndex -> length > 0 && self.osc[oscIndex].trigger.lastTriggerIndex -> data[0].i + self.osc[oscIndex].windowSize / 2 <= dataLength) {
-                /* trigger takes some time to kick in */
+            if (self.osc[oscIndex].trigger.lastTriggerIndex -> length > 0 && self.osc[oscIndex].trigger.lastTriggerIndex -> data[0].i < dataLength) {
                 self.osc[oscIndex].trigger.triggerIndex = self.osc[oscIndex].trigger.lastTriggerIndex -> data[0].i;
                 list_delete(self.osc[oscIndex].trigger.lastTriggerIndex, 0);
             }
             if (self.osc[oscIndex].trigger.triggerIndex == 0) {
-                setBoundsNoTrigger(oscIndex);
+                setBoundsNoTrigger(oscIndex, 0);
             }
             if (self.osc[oscIndex].trigger.triggerType == TRIGGER_RISING_EDGE) {
-                if (self.data -> data[self.osc[oscIndex].dataIndex].r -> data[dataLength - 2].d < 0 && self.data -> data[self.osc[oscIndex].dataIndex].r -> data[dataLength - 1].d >= 0 && dataLength > self.osc[oscIndex].windowSize / 2) {
+                if (self.data -> data[self.osc[oscIndex].dataIndex].r -> data[dataLength - 2].d < 0 && self.data -> data[self.osc[oscIndex].dataIndex].r -> data[dataLength - 1].d >= 0) {
                     list_append(self.osc[oscIndex].trigger.lastTriggerIndex, (unitype) (dataLength - 2), 'i');
                 }
             }
             // printf("triggerIndex %d\n", self.osc[oscIndex].trigger.triggerIndex);
             // list_print(self.osc[oscIndex].trigger.lastTriggerIndex);
         }
+    } else {
+        setBoundsNoTrigger(oscIndex, 1);
     }
     if (self.windows[windowIndex].minimize == 0) {
         /* render window background */
