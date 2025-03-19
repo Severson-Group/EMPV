@@ -129,6 +129,7 @@ typedef struct { // all the empv shared state is here
         double themeColors[90];
     /* oscilloscope view */
         oscilloscope_t osc[12]; // up to 12 oscilloscopes
+        int newOsc;
     /* frequency view */
         list_t *windowData; // segment of normal data through windowing function
         list_t *freqData; // frequency data
@@ -334,6 +335,19 @@ void *commsThreadFunction(void *arg) {
 
 void populateLoggedVariables() {
     if (self.commsEnabled == 0) {
+        /* make demo slots */
+        list_append(self.logVariables, (unitype) "Demo2", 's');
+        list_append(self.logSlots, (unitype) -1, 'i');
+        list_append(self.logSockets, (unitype) NULL, 'p');
+        list_append(self.logSocketIDs, (unitype) -1, 'i');
+        list_append(self.logVariables, (unitype) "Demo3", 's');
+        list_append(self.logSlots, (unitype) -1, 'i');
+        list_append(self.logSockets, (unitype) NULL, 'p');
+        list_append(self.logSocketIDs, (unitype) -1, 'i');
+        list_append(self.logVariables, (unitype) "Demo4", 's');
+        list_append(self.logSlots, (unitype) -1, 'i');
+        list_append(self.logSockets, (unitype) NULL, 'p');
+        list_append(self.logSocketIDs, (unitype) -1, 'i');
         return;
     }
     commsCommand("log info");
@@ -387,6 +401,47 @@ void populateLoggedVariables() {
         }
     }
     printf("Max Logging Slots: %d\n", self.maxSlots);
+}
+
+void createNewOsc() {
+    if (self.newOsc > 3) {
+        return;
+    }
+    self.osc[self.newOsc].trigger.triggerType = TRIGGER_NONE;
+    self.osc[self.newOsc].trigger.triggerIndex = 0;
+    self.osc[self.newOsc].trigger.lastTriggerIndex = list_init();
+    self.osc[self.newOsc].dataIndex = 0;
+    self.osc[self.newOsc].leftBound = 0;
+    self.osc[self.newOsc].rightBound = 0;
+    self.osc[self.newOsc].bottomBound = -100;
+    self.osc[self.newOsc].topBound = 100;
+    self.osc[self.newOsc].windowSize = 200;
+    self.osc[self.newOsc].samplesPerSecond = 120;
+    self.osc[self.newOsc].stop = 0;
+    int oscIndex = ilog2(WINDOW_OSC) + self.newOsc;
+    strcpy(self.windows[oscIndex].title, "Oscilloscope");
+    self.windows[oscIndex].windowCoords[0] = -317;
+    self.windows[oscIndex].windowCoords[1] = 0;
+    self.windows[oscIndex].windowCoords[2] = -2;
+    self.windows[oscIndex].windowCoords[3] = 167;
+    self.windows[oscIndex].windowTop = 15;
+    self.windows[oscIndex].windowSide = 50;
+    self.windows[oscIndex].windowMinX = 60 + self.windows[oscIndex].windowSide;
+    self.windows[oscIndex].windowMinY = 150 + self.windows[oscIndex].windowTop;
+    self.windows[oscIndex].minimize = 0;
+    self.windows[oscIndex].move = 0;
+    self.windows[oscIndex].click = 0;
+    self.windows[oscIndex].resize = 0;
+    self.windows[oscIndex].dials = list_init();
+    self.windows[oscIndex].switches = list_init();
+    self.windows[oscIndex].dropdowns = list_init();
+    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("X Scale", &self.osc[self.newOsc].windowSize, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, 1, -25 - self.windows[oscIndex].windowTop, 8, 4, 1024), 'p');
+    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[self.newOsc].topBound, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, 1, -65 - self.windows[oscIndex].windowTop, 8, 1, 10000), 'p');
+    list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Pause", &self.osc[self.newOsc].stop, WINDOW_OSC * pow2(self.newOsc), 1, -100 - self.windows[oscIndex].windowTop, 8), 'p');
+    list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Trigger", &self.osc[self.newOsc].trigger.triggerType, WINDOW_OSC * pow2(self.newOsc), 1, -130 - self.windows[oscIndex].windowTop, 8), 'p');
+    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, WINDOW_OSC * pow2(self.newOsc), 1, -7, 8), 'p');
+    list_append(self.windowRender, (unitype) (WINDOW_OSC * pow2(self.newOsc)), 'i');
+    self.newOsc++;
 }
 
 /* initialise global state */
@@ -443,47 +498,14 @@ void init() { // initialises the empv variabes (shared state)
     }
     self.windowRender = list_init();
     list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
-    list_append(self.windowRender, (unitype) WINDOW_OSC, 'i');
     list_append(self.windowRender, (unitype) WINDOW_EDITOR, 'i');
     self.anchorX = 0;
     self.anchorY = 0;
     self.dialAnchorX = 0;
     self.dialAnchorY = 0;
     /* osc */
-    self.osc[0].trigger.triggerType = TRIGGER_NONE;
-    self.osc[0].trigger.triggerIndex = 0;
-    self.osc[0].trigger.lastTriggerIndex = list_init();
-    self.osc[0].dataIndex = 0;
-    self.osc[0].leftBound = 0;
-    self.osc[0].rightBound = 0;
-    self.osc[0].bottomBound = -100;
-    self.osc[0].topBound = 100;
-    self.osc[0].windowSize = 200;
-    self.osc[0].samplesPerSecond = 120;
-    self.osc[0].stop = 0;
-    int oscIndex = ilog2(WINDOW_OSC);
-    strcpy(self.windows[oscIndex].title, "Oscilloscope");
-    self.windows[oscIndex].windowCoords[0] = -317;
-    self.windows[oscIndex].windowCoords[1] = 0;
-    self.windows[oscIndex].windowCoords[2] = -2;
-    self.windows[oscIndex].windowCoords[3] = 167;
-    self.windows[oscIndex].windowTop = 15;
-    self.windows[oscIndex].windowSide = 50;
-    self.windows[oscIndex].windowMinX = 60 + self.windows[oscIndex].windowSide;
-    self.windows[oscIndex].windowMinY = 150 + self.windows[oscIndex].windowTop;
-    self.windows[oscIndex].minimize = 0;
-    self.windows[oscIndex].move = 0;
-    self.windows[oscIndex].click = 0;
-    self.windows[oscIndex].resize = 0;
-    self.windows[oscIndex].dials = list_init();
-    self.windows[oscIndex].switches = list_init();
-    self.windows[oscIndex].dropdowns = list_init();
-    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("X Scale", &self.osc[0].windowSize, WINDOW_OSC, DIAL_EXP, 1, -25 - self.windows[oscIndex].windowTop, 8, 4, 1024), 'p');
-    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[0].topBound, WINDOW_OSC, DIAL_EXP, 1, -65 - self.windows[oscIndex].windowTop, 8, 1, 10000), 'p');
-    list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Pause", &self.osc[0].stop, WINDOW_OSC, 1, -100 - self.windows[oscIndex].windowTop, 8), 'p');
-    list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Trigger", &self.osc[0].trigger.triggerType, WINDOW_OSC, 1, -130 - self.windows[oscIndex].windowTop, 8), 'p');
-    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, WINDOW_OSC, 1, -7, 8), 'p');
-
+    self.newOsc = 0;
+    createNewOsc();
     /* frequency */
     self.windowData = list_init();
     self.freqData = list_init();
@@ -706,14 +728,14 @@ void dropdownTick(int window) {
                             } else {
                                 dropdown -> index = selected;
                             }
-                            self.osc[0].dataIndex = dropdown -> index;
-                            self.osc[0].rightBound = self.data -> data[self.osc[0].dataIndex].r -> length - 1;
-                            if (self.osc[0].rightBound < 0) {
-                                self.osc[0].rightBound = 0;
+                            self.osc[window - 2].dataIndex = dropdown -> index;
+                            self.osc[window - 2].rightBound = self.data -> data[self.osc[window - 2].dataIndex].r -> length - 1;
+                            if (self.osc[window - 2].rightBound < 0) {
+                                self.osc[window - 2].rightBound = 0;
                             }
-                            self.osc[0].leftBound = self.data -> data[self.osc[0].dataIndex].r -> length - self.osc[0].windowSize - 1;
-                            if (self.osc[0].leftBound < 0) {
-                                self.osc[0].leftBound = 0;
+                            self.osc[window - 2].leftBound = self.data -> data[self.osc[window - 2].dataIndex].r -> length - self.osc[window - 2].windowSize - 1;
+                            if (self.osc[window - 2].leftBound < 0) {
+                                self.osc[window - 2].leftBound = 0;
                             }
                         }
                         dropdown -> status = -2;
@@ -1001,7 +1023,7 @@ void setBoundsNoTrigger(int oscIndex, int stopped) {
 }
 
 void renderOscData(int oscIndex) {
-    int windowIndex = ilog2(WINDOW_OSC);
+    int windowIndex = ilog2(WINDOW_OSC) + oscIndex;
     self.osc[oscIndex].bottomBound = self.osc[oscIndex].topBound * -1;
     /* set left and right bounds */
     if (!self.osc[oscIndex].stop) {
@@ -1270,18 +1292,12 @@ void renderEditorData() {
 
 void renderOrder() {
     for (int i = 0; i < self.windowRender -> length; i++) {
-        switch (self.windowRender -> data[i].i) {
-        case WINDOW_OSC:
-            renderOscData(0);
-            break;
-        case WINDOW_FREQ:
+        if (self.windowRender -> data[i].i >= WINDOW_OSC) {
+            renderOscData(ilog2(self.windowRender -> data[i].i) - ilog2(WINDOW_OSC));
+        } else if (self.windowRender -> data[i].i == WINDOW_FREQ) {
             renderFreqData();
-            break;
-        case WINDOW_EDITOR:
+        } else if (self.windowRender -> data[i].i == WINDOW_EDITOR) {
             renderEditorData();
-            break;
-        default:
-            break;    
         }
         renderWindow(ilog2(self.windowRender -> data[i].i));
     }
@@ -1309,8 +1325,8 @@ void parseRibbonOutput() {
         ribbonRender.output[0] = 0; // untoggle
         if (ribbonRender.output[1] == 0) { // file
             if (ribbonRender.output[2] == 1) { // new
-                printf("New file created\n");
-                strcpy(win32FileDialog.selectedFilename, "null");
+                printf("New oscilloscope created\n");
+                createNewOsc();
             }
             if (ribbonRender.output[2] == 2) { // save
                 if (strcmp(win32FileDialog.selectedFilename, "null") == 0) {
@@ -1518,8 +1534,12 @@ int main(int argc, char *argv[]) {
         double sinValue1 = sin(tick / 5.0) * 25;
         double sinValue2 = sin(tick / 3.37) * 25;
         double sinValue3 = sin(tick * 1.1) * 12.5;
-        // list_append(self.data -> data[0].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
         list_append(self.data -> data[0].r, (unitype) (sinValue1), 'd');
+        if (self.commsEnabled == 0) {
+            list_append(self.data -> data[1].r, (unitype) (sinValue2), 'd');
+            list_append(self.data -> data[2].r, (unitype) (sinValue3), 'd');
+            list_append(self.data -> data[3].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
+        }
         utilLoop();
         turtleGetMouseCoords(); // get the mouse coordinates (turtle.mouseX, turtle.mouseY)
         turtleClear();
