@@ -308,7 +308,7 @@ void commsGetData(int logSlotIndex) {
         uint32_t data = ((uint32_t) tcpLoggingReceiveBuffer[index + 3]) << 24 | ((uint32_t) tcpLoggingReceiveBuffer[index + 2]) << 16 | ((uint32_t) tcpLoggingReceiveBuffer[index + 1]) << 8 | ((uint32_t) tcpLoggingReceiveBuffer[index + 0]);
         index += 4;
         if (tcpLoggingReceiveBuffer[index] == 0x22 && tcpLoggingReceiveBuffer[index + 1] == 0x22 && tcpLoggingReceiveBuffer[index + 2] == 0x22 && tcpLoggingReceiveBuffer[index + 3] == 0x22) {
-            // printf("packet %d:\nvar_slot: %u\ntimestamp: %u\ndata: %X\n", index - 16, varSlot, timestamp, data);
+            // printf("logSlotIndex: %d\npacket %d:\nvar_slot: %u\ntimestamp: %u\ndata: %X\n", logSlotIndex, index - 16, varSlot, timestamp, data);
             /* add value to data */
             float dataValue = *(float *) &data;
             list_append(self.data -> data[dataIndex].r, (unitype) (double) dataValue, 'd');
