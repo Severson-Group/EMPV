@@ -90,6 +90,7 @@ typedef struct {
 typedef struct { // oscilloscope view
     trigger_settings_t trigger;
     int dataIndex[4]; // index of data list for oscilloscope source (up to four channels)
+    int oldSelectedChannel; // keep track of selected channel last tick
     int selectedChannel; // selected channel (1-4) of oscilloscope
     int leftBound; // left bound (index in data list) - global per oscilloscope
     int rightBound; // right bound (index in data list) - global per oscilloscope
@@ -438,7 +439,8 @@ void createNewOsc() {
     self.osc[self.newOsc].dataIndex[1] = 0; // unused
     self.osc[self.newOsc].dataIndex[2] = 0; // unused
     self.osc[self.newOsc].dataIndex[3] = 0; // unused
-    self.osc[self.newOsc].selectedChannel = 3;
+    self.osc[self.newOsc].selectedChannel = 0;
+    self.osc[self.newOsc].oldSelectedChannel = 0;
     self.osc[self.newOsc].leftBound = 1;
     self.osc[self.newOsc].rightBound = 1;
     self.osc[self.newOsc].bottomBound[0] = -100;
@@ -738,7 +740,7 @@ void dropdownTick(int window) {
             double itemHeight = (dropdown -> size * 1.5);
             if (windowID >= WINDOW_OSC) {
                 int oscIndex = window - ilog2(WINDOW_OSC);
-                if (self.osc[oscIndex].selectedChannel == i) {
+                if (self.osc[oscIndex].selectedChannel == 3 - i) {
                     turtleRectangle(dropdownX - dropdown -> size - xfactor - 1, dropdownY - dropdown -> size * 0.7 - 1, dropdownX + dropdown -> size + 10 + 1, dropdownY + dropdown -> size * 0.7 + 1, self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11], 0);
                 }
                 logicIndex = self.osc[oscIndex].dropdownLogicIndex;
@@ -767,7 +769,7 @@ void dropdownTick(int window) {
                         dropdown -> status = 1;
                         if (windowID >= WINDOW_OSC) {
                             int oscIndex = window - ilog2(WINDOW_OSC);
-                            self.osc[oscIndex].selectedChannel = i;
+                            self.osc[oscIndex].selectedChannel = 3 - i;
                         }
                     }
                 }
@@ -1098,6 +1100,11 @@ void setBoundsNoTrigger(int oscIndex, int stopped) {
 
 void renderOscData(int oscIndex) {
     int windowIndex = ilog2(WINDOW_OSC) + oscIndex;
+    if (self.osc[oscIndex].oldSelectedChannel != self.osc[oscIndex].selectedChannel) {
+        self.osc[oscIndex].dummyTopBound = self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel];
+        self.osc[oscIndex].oldSelectedChannel = self.osc[oscIndex].selectedChannel;
+    }
+    self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].dummyTopBound;
     self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] * -1;
     /* set left and right bounds */
     if (!self.osc[oscIndex].stop) {
@@ -1153,7 +1160,7 @@ void renderOscData(int oscIndex) {
                 }
                 turtlePenColor(self.themeColors[self.theme + 24 + j * 3], self.themeColors[self.theme + 25 + j * 3], self.themeColors[self.theme + 26 + j * 3]);
                 for (int i = 0; i < self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound; i++) {
-                    turtleGoto(self.windows[windowIndex].windowCoords[0] + i * xquantum, self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[j]].r -> data[self.osc[oscIndex].leftBound + i].d - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel])) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
+                    turtleGoto(self.windows[windowIndex].windowCoords[0] + i * xquantum, self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[j]].r -> data[self.osc[oscIndex].leftBound + i].d - self.osc[oscIndex].bottomBound[j]) / (self.osc[oscIndex].topBound[j] - self.osc[oscIndex].bottomBound[j])) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
                     turtlePenDown();
                 }
                 turtlePenUp();
