@@ -1113,8 +1113,8 @@ void renderOscData(int oscIndex) {
             setBoundsNoTrigger(oscIndex, 0);
         } else {
             self.osc[oscIndex].rightBound = self.osc[oscIndex].trigger.triggerIndex;
-            if (self.osc[oscIndex].rightBound > self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> length) {
-                self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> length;
+            if (self.osc[oscIndex].rightBound > self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length) {
+                self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length;
             }
             self.osc[oscIndex].leftBound = self.osc[oscIndex].trigger.triggerIndex - self.osc[oscIndex].windowSize;
             if (self.osc[oscIndex].leftBound < 0) {
@@ -1122,7 +1122,7 @@ void renderOscData(int oscIndex) {
             }
 
             /* identify triggerIndex (trigger index is right side of window) */
-            int dataLength = self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> length;
+            int dataLength = self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length;
             if (self.osc[oscIndex].trigger.lastTriggerIndex -> length > 0 && self.osc[oscIndex].trigger.lastTriggerIndex -> data[0].i < dataLength) {
                 self.osc[oscIndex].trigger.triggerIndex = self.osc[oscIndex].trigger.lastTriggerIndex -> data[0].i;
                 list_delete(self.osc[oscIndex].trigger.lastTriggerIndex, 0);
@@ -1131,7 +1131,7 @@ void renderOscData(int oscIndex) {
                 setBoundsNoTrigger(oscIndex, 0);
             }
             if (self.osc[oscIndex].trigger.triggerType == TRIGGER_RISING_EDGE) {
-                if (self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> data[dataLength - 2].d < 0 && self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> data[dataLength - 1].d >= 0) {
+                if (self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 2].d < 0 && self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 1].d >= 0) {
                     list_append(self.osc[oscIndex].trigger.lastTriggerIndex, (unitype) (dataLength - 2), 'i');
                 }
             }
@@ -1170,11 +1170,11 @@ void renderOscData(int oscIndex) {
         // if (self.windowRender -> data[self.windowRender -> length - 1].i >= WINDOW_OSC) {
             if (self.mx > self.windows[windowIndex].windowCoords[0] + 15 && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) {
                 int sample = round((self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum);
-                if (self.osc[oscIndex].leftBound + sample >= self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> length) {
+                if (self.osc[oscIndex].leftBound + sample >= self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length) {
                     return;
                 }
                 double sampleX = self.windows[windowIndex].windowCoords[0] + sample * xquantum;
-                double sampleY = self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> data[self.osc[oscIndex].leftBound + sample].d - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel])) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+                double sampleY = self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[self.osc[oscIndex].leftBound + sample].d - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel])) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
                 turtleRectangle(sampleX - 1, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop, sampleX + 1, self.windows[windowIndex].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
                 turtleRectangle(self.windows[windowIndex].windowCoords[0], sampleY - 1, self.windows[windowIndex].windowCoords[2], sampleY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
                 turtlePenColor(215, 215, 215);
@@ -1184,7 +1184,7 @@ void renderOscData(int oscIndex) {
                 turtlePenUp();
                 char sampleValue[24];
                 /* render side box */
-                sprintf(sampleValue, "%.02lf", self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> data[self.osc[oscIndex].leftBound + sample].d);
+                sprintf(sampleValue, "%.02lf", self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[self.osc[oscIndex].leftBound + sample].d);
                 double boxLength = textGLGetStringLength(sampleValue, 8);
                 double boxX = self.windows[windowIndex].windowCoords[0] + 12;
                 if (sampleX - boxX < 40) {
