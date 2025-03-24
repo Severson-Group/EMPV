@@ -95,7 +95,6 @@ typedef struct { // oscilloscope view
     double bottomBound; // bottom bound (y value)
     double topBound; // top bound (y value)
     double windowSize; // size of window (index in data list)
-    double samplesPerSecond; // samples per second for logged variables
     int stop; // pause and unpause
 } oscilloscope_t;
 
@@ -108,7 +107,7 @@ typedef struct { // all the empv shared state is here
     uint8_t tcpAsciiReceiveBuffer[TCP_RECEIVE_BUFFER_LENGTH];
     int maxSlots; // maximum logging slots on AMDC
     /* general */
-        list_t *data; // a list of all data collected through ethernet
+        list_t *data; // a list of lists of all data collected through ethernet (first element is samples/s)
         list_t *logVariables; // a list of variable names logged on the AMDC
         list_t *logSlots; // list of slot numbers synced with logVariables (Slot 0: X)
         list_t *logSockets; // list of socket pointers
@@ -136,6 +135,7 @@ typedef struct { // all the empv shared state is here
         list_t *windowData; // segment of normal data through windowing function
         list_t *freqData; // frequency data
         int freqOscIndex; // referenced oscilloscope
+        int freqOscChannel; // referenced channel
         int freqLeftBound;
         int freqRightBound;
         double freqZoom;
@@ -343,18 +343,26 @@ void populateLoggedVariables() {
         list_append(self.logSlots, (unitype) -1, 'i');
         list_append(self.logSockets, (unitype) NULL, 'p');
         list_append(self.logSocketIDs, (unitype) -1, 'i');
+        list_append(self.data, (unitype) list_init(), 'r');
+        list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120.0, 'd'); // set samples/s
         list_append(self.logVariables, (unitype) "Demo2", 's');
         list_append(self.logSlots, (unitype) -1, 'i');
         list_append(self.logSockets, (unitype) NULL, 'p');
         list_append(self.logSocketIDs, (unitype) -1, 'i');
+        list_append(self.data, (unitype) list_init(), 'r');
+        list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120.0, 'd'); // set samples/s
         list_append(self.logVariables, (unitype) "Demo3", 's');
         list_append(self.logSlots, (unitype) -1, 'i');
         list_append(self.logSockets, (unitype) NULL, 'p');
         list_append(self.logSocketIDs, (unitype) -1, 'i');
+        list_append(self.data, (unitype) list_init(), 'r');
+        list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120.0, 'd'); // set samples/s
         list_append(self.logVariables, (unitype) "Demo4", 's');
         list_append(self.logSlots, (unitype) -1, 'i');
         list_append(self.logSockets, (unitype) NULL, 'p');
         list_append(self.logSocketIDs, (unitype) -1, 'i');
+        list_append(self.data, (unitype) list_init(), 'r');
+        list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120.0, 'd'); // set samples/s
         return;
     }
     commsCommand("log info");
@@ -379,6 +387,8 @@ void populateLoggedVariables() {
                 }
                 list_append(self.logSlots, (unitype) slotNum, 'i');
                 list_append(self.logVariables, (unitype) (testString + 8), 's');
+                list_append(self.data, (unitype) list_init(), 'r');
+                list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120, 'd'); // set samples/s
                 break;
             case 4: // Type: <type>
                 break;
@@ -417,16 +427,19 @@ void createNewOsc() {
     self.osc[self.newOsc].trigger.triggerType = TRIGGER_NONE;
     self.osc[self.newOsc].trigger.triggerIndex = 0;
     self.osc[self.newOsc].trigger.lastTriggerIndex = list_init();
-    self.osc[self.newOsc].dataIndex[0] = 1; // Demo 1
+    if (self.logVariables -> length > 0) {
+        self.osc[self.newOsc].dataIndex[0] = 1; // Demo 1
+    } else {
+        self.osc[self.newOsc].dataIndex[0] = 0; // unused
+    }
     self.osc[self.newOsc].dataIndex[1] = 0; // unused
     self.osc[self.newOsc].dataIndex[2] = 0; // unused
     self.osc[self.newOsc].dataIndex[3] = 0; // unused
-    self.osc[self.newOsc].leftBound = 0;
-    self.osc[self.newOsc].rightBound = 0;
+    self.osc[self.newOsc].leftBound = 1;
+    self.osc[self.newOsc].rightBound = 1;
     self.osc[self.newOsc].bottomBound = -100;
     self.osc[self.newOsc].topBound = 100;
     self.osc[self.newOsc].windowSize = 200;
-    self.osc[self.newOsc].samplesPerSecond = 120;
     self.osc[self.newOsc].stop = 0;
     int oscIndex = ilog2(WINDOW_OSC) + self.newOsc;
     sprintf(self.windows[oscIndex].title, "Oscilloscope %d", self.newOsc + 1);
@@ -512,11 +525,9 @@ void init() { // initialises the empv variabes (shared state)
     list_append(self.logSlots, (unitype) -1, 'i');
     list_append(self.logSockets, (unitype) NULL, 'p');
     list_append(self.logSocketIDs, (unitype) -1, 'i');
-    populateLoggedVariables(); // gather logged variables
     self.data = list_init();
-    for (int i = 0; i < self.logVariables -> length; i++) {
-        list_append(self.data, (unitype) list_init(), 'r');
-    }
+    list_append(self.data, (unitype) list_init(), 'r'); // unused list
+    populateLoggedVariables(); // gather logged variables
     self.windowRender = list_init();
     list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
     list_append(self.windowRender, (unitype) WINDOW_EDITOR, 'i');
@@ -531,6 +542,7 @@ void init() { // initialises the empv variabes (shared state)
     self.windowData = list_init();
     self.freqData = list_init();
     self.freqOscIndex = 0;
+    self.freqOscChannel = 0;
     self.freqLeftBound = 0;
     self.freqRightBound = 0;
     self.freqZoom = 1.0;
@@ -696,90 +708,83 @@ void switchTick(int window) {
     }
 }
 
-void dropdownTick(int window) {
-    if (self.windows[window].dropdowns -> length > 0) {
-        self.windows[window].windowSide = 0;
+void dropdownRenderInternal(dropdown_t *dropdown, int window, int windowID) {
+    double dropdownX = self.windows[window].windowCoords[2] + dropdown -> position[0];
+    double dropdownY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1];
+    double xfactor = textGLGetStringLength(dropdown -> options -> data[dropdown -> index].s, dropdown -> size - 1);
+    if (self.windows[window].windowSide < (xfactor - dropdown -> position[0] + 10)) {
+        self.windows[window].windowSide = xfactor - dropdown -> position[0] + 10;
     }
-    int windowID = pow2(window);
-    for (int i = 0; i < self.windows[window].dropdowns -> length; i++) {
-        dropdown_t *dropdown = (dropdown_t *) (self.windows[window].dropdowns -> data[i].p);
-        if ((dropdown -> window & windowID) != 0) {
-            double dropdownX = self.windows[window].windowCoords[2] + dropdown -> position[0];
-            double dropdownY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1];
-            double xfactor = textGLGetStringLength(dropdown -> options -> data[dropdown -> index].s, dropdown -> size - 1);
-            if (self.windows[window].windowSide < (xfactor - dropdown -> position[0] + 10)) {
-                self.windows[window].windowSide = xfactor - dropdown -> position[0] + 10;
+    double itemHeight = (dropdown -> size * 1.5);
+    if (dropdown -> status == -1) {
+        turtleRectangle(dropdownX - dropdown -> size - xfactor, dropdownY - dropdown -> size * 0.7, dropdownX + dropdown -> size + 10, dropdownY + dropdown -> size * 0.7, self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+    } else if (dropdown -> status >= 1) {
+        turtleRectangle(dropdownX - dropdown -> size - dropdown -> maxXfactor, dropdownY - dropdown -> size * 0.7 - (dropdown -> options -> length - 1) * itemHeight, dropdownX + dropdown -> size + 10, dropdownY + dropdown -> size * 0.7, self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+    } else {
+        turtleRectangle(dropdownX - dropdown -> size - xfactor, dropdownY - dropdown -> size * 0.7, dropdownX + dropdown -> size + 10, dropdownY + dropdown -> size * 0.7, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 0);
+    }
+    if (self.windowRender -> data[self.windowRender -> length - 1].i == windowID) {
+        if (self.mx > dropdownX - dropdown -> size - xfactor && self.mx < dropdownX + dropdown -> size + 10 && self.my > dropdownY - dropdown -> size * 0.7 && self.my < dropdownY + dropdown -> size * 0.7) {
+            if (!self.mouseDown && dropdown -> status == 0) {
+                dropdown -> status = -1;
             }
-            double itemHeight = (dropdown -> size * 1.5);
+        } else {
             if (dropdown -> status == -1) {
-                turtleRectangle(dropdownX - dropdown -> size - xfactor, dropdownY - dropdown -> size * 0.7, dropdownX + dropdown -> size + 10, dropdownY + dropdown -> size * 0.7, self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
-            } else if (dropdown -> status >= 1) {
-                turtleRectangle(dropdownX - dropdown -> size - dropdown -> maxXfactor, dropdownY - dropdown -> size * 0.7 - (dropdown -> options -> length - 1) * itemHeight, dropdownX + dropdown -> size + 10, dropdownY + dropdown -> size * 0.7, self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
-            } else {
-                turtleRectangle(dropdownX - dropdown -> size - xfactor, dropdownY - dropdown -> size * 0.7, dropdownX + dropdown -> size + 10, dropdownY + dropdown -> size * 0.7, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 0);
+                dropdown -> status = 0;
             }
-            if (self.windowRender -> data[self.windowRender -> length - 1].i == windowID) {
-                if (self.mx > dropdownX - dropdown -> size - xfactor && self.mx < dropdownX + dropdown -> size + 10 && self.my > dropdownY - dropdown -> size * 0.7 && self.my < dropdownY + dropdown -> size * 0.7) {
-                    if (!self.mouseDown && dropdown -> status == 0) {
-                        dropdown -> status = -1;
-                    }
-                } else {
-                    if (dropdown -> status == -1) {
-                        dropdown -> status = 0;
-                    }
-                }
-                if (dropdown -> status == -1) {
-                    if (self.mouseDown) {
-                        dropdown -> status = 1;
-                    }
-                }
-                if (dropdown -> status == 1) {
-                    if (!self.mouseDown) {
-                        dropdown -> status = 2;
-                    }
-                }
-                if (dropdown -> status == -2) {
-                    if (!self.mouseDown) {
-                        dropdown -> status = 0;
-                    }
-                }
+        }
+        if (dropdown -> status == -1) {
+            if (self.mouseDown) {
+                dropdown -> status = 1;
             }
-            if (dropdown -> status == 2 || dropdown -> status == 1) {
-                if (self.mx > dropdownX - dropdown -> size - dropdown -> maxXfactor && self.mx < dropdownX + dropdown -> size + 10 && self.my > dropdownY - dropdown -> size * 0.7 - (dropdown -> options -> length - 1) * itemHeight && self.my < dropdownY + dropdown -> size * 0.7) {
-                    int selected = round((dropdownY - self.my) / itemHeight);
-                    turtleRectangle(dropdownX - dropdown -> size - dropdown -> maxXfactor, dropdownY - dropdown -> size * 0.7 - selected * itemHeight, dropdownX + dropdown -> size + 10, dropdownY + dropdown -> size * 0.7 - selected * itemHeight, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 0);
-                    if (self.mouseDown && dropdown -> status == 2) {
-                        if (selected != 0) {
-                            if (dropdown -> index >= selected) {
-                                dropdown -> index = selected - 1;
-                            } else {
-                                dropdown -> index = selected;
-                            }
-                            *dropdown -> variable = dropdown -> index;
-                            self.osc[window - 2].rightBound = self.data -> data[*dropdown -> variable].r -> length - 1;
-                            if (self.osc[window - 2].rightBound < 0) {
-                                self.osc[window - 2].rightBound = 0;
-                            }
-                            self.osc[window - 2].leftBound = self.data -> data[*dropdown -> variable].r -> length - self.osc[window - 2].windowSize - 1;
-                            if (self.osc[window - 2].leftBound < 0) {
-                                self.osc[window - 2].leftBound = 0;
-                            }
-                        }
-                        dropdown -> status = -2;
+        }
+        if (dropdown -> status == 1) {
+            if (!self.mouseDown) {
+                dropdown -> status = 2;
+            }
+        }
+        if (dropdown -> status == -2) {
+            if (!self.mouseDown) {
+                dropdown -> status = 0;
+            }
+        }
+    }
+    if (dropdown -> status == 2 || dropdown -> status == 1) {
+        if (self.mx > dropdownX - dropdown -> size - dropdown -> maxXfactor && self.mx < dropdownX + dropdown -> size + 10 && self.my > dropdownY - dropdown -> size * 0.7 - (dropdown -> options -> length - 1) * itemHeight && self.my < dropdownY + dropdown -> size * 0.7) {
+            int selected = round((dropdownY - self.my) / itemHeight);
+            turtleRectangle(dropdownX - dropdown -> size - dropdown -> maxXfactor, dropdownY - dropdown -> size * 0.7 - selected * itemHeight, dropdownX + dropdown -> size + 10, dropdownY + dropdown -> size * 0.7 - selected * itemHeight, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 0);
+            if (self.mouseDown && dropdown -> status == 2) {
+                if (selected != 0) {
+                    if (dropdown -> index >= selected) {
+                        dropdown -> index = selected - 1;
+                    } else {
+                        dropdown -> index = selected;
                     }
-                } else {
-                    if (self.mouseDown) {
-                        dropdown -> status = 0;
+                    *dropdown -> variable = dropdown -> index;
+                    self.osc[window - 2].rightBound = self.data -> data[*dropdown -> variable].r -> length - 1;
+                    if (self.osc[window - 2].rightBound < 0) {
+                        self.osc[window - 2].rightBound = 1;
                     }
-                }
-                turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
-                int renderIndex = 1;
-                for (int i = 0; i < dropdown -> options -> length; i++) {
-                    if (i != dropdown -> index) {
-                        textGLWriteString(dropdown -> options -> data[i].s, dropdownX, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1] - renderIndex * itemHeight, dropdown -> size - 1, 100);
-                        renderIndex++;
+                    self.osc[window - 2].leftBound = self.data -> data[*dropdown -> variable].r -> length - self.osc[window - 2].windowSize - 1;
+                    if (self.osc[window - 2].leftBound < 0) {
+                        self.osc[window - 2].leftBound = 1;
                     }
                 }
+                dropdown -> status = -2;
+            }
+        } else {
+            if (self.mouseDown) {
+                dropdown -> status = 0;
+            }
+        }
+        turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+        int renderIndex = 1;
+        for (int i = 0; i < dropdown -> options -> length; i++) {
+            if (i != dropdown -> index) {
+                textGLWriteString(dropdown -> options -> data[i].s, dropdownX, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1] - renderIndex * itemHeight, dropdown -> size - 1, 100);
+                renderIndex++;
+            }
+        }
             }
             turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
             textGLWriteString(dropdown -> options -> data[dropdown -> index].s, dropdownX, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1], dropdown -> size - 1, 100);
@@ -788,7 +793,28 @@ void dropdownTick(int window) {
             } else {
                 turtleTriangle(dropdownX + 13, dropdownY + 3, dropdownX + 5, dropdownY + 3, dropdownX + 9, dropdownY - 3, self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11], 0);
             }
+}
+
+void dropdownTick(int window) {
+    if (self.windows[window].dropdowns -> length > 0) {
+        self.windows[window].windowSide = 0;
+    }
+    int windowID = pow2(window);
+    dropdown_t *dropdownQueue[self.windows[window].dropdowns -> length];
+    int queueLength = 0;
+    for (int i = 0; i < self.windows[window].dropdowns -> length; i++) {
+        dropdown_t *dropdown = (dropdown_t *) (self.windows[window].dropdowns -> data[i].p);
+        if ((dropdown -> window & windowID) != 0) {
+            if (dropdown -> status >= 1) {
+                dropdownQueue[queueLength] = dropdown;
+                queueLength++;
+                continue;
+            }
+            dropdownRenderInternal(dropdown, window, windowID);
         }
+    }
+    for (int i = 0; i < queueLength; i++) {
+        dropdownRenderInternal(dropdownQueue[i], window, windowID);
     }
 }
 
@@ -1041,7 +1067,7 @@ void setBoundsNoTrigger(int oscIndex, int stopped) {
     if (self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound < self.osc[oscIndex].windowSize) {
         self.osc[oscIndex].leftBound = self.osc[oscIndex].rightBound - self.osc[oscIndex].windowSize;
         if (self.osc[oscIndex].leftBound < 0) {
-            self.osc[oscIndex].leftBound = 0;
+            self.osc[oscIndex].leftBound = 1;
         }
     }
     if (self.osc[oscIndex].rightBound > self.osc[oscIndex].leftBound + self.osc[oscIndex].windowSize) {
@@ -1064,7 +1090,7 @@ void renderOscData(int oscIndex) {
             }
             self.osc[oscIndex].leftBound = self.osc[oscIndex].trigger.triggerIndex - self.osc[oscIndex].windowSize;
             if (self.osc[oscIndex].leftBound < 0) {
-                self.osc[oscIndex].leftBound = 0;
+                self.osc[oscIndex].leftBound = 1;
             }
 
             /* identify triggerIndex (trigger index is right side of window) */
@@ -1100,15 +1126,17 @@ void renderOscData(int oscIndex) {
         turtlePenSize(1);
         double xquantum = (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0]) / (self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound - 1);
         for (int j = 0; j < 4; j++) {
-            if (self.osc[oscIndex].dataIndex[j] <= 0) {
-                continue;
+            if (self.data -> data[self.osc[oscIndex].dataIndex[j]].r -> length >= self.osc[oscIndex].rightBound) {
+                if (self.osc[oscIndex].dataIndex[j] <= 0) {
+                    continue;
+                }
+                turtlePenColor(self.themeColors[self.theme + 24 + j * 3], self.themeColors[self.theme + 25 + j * 3], self.themeColors[self.theme + 26 + j * 3]);
+                for (int i = 0; i < self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound; i++) {
+                    turtleGoto(self.windows[windowIndex].windowCoords[0] + i * xquantum, self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[j]].r -> data[self.osc[oscIndex].leftBound + i].d - self.osc[oscIndex].bottomBound) / (self.osc[oscIndex].topBound - self.osc[oscIndex].bottomBound)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
+                    turtlePenDown();
+                }
+                turtlePenUp();
             }
-            turtlePenColor(self.themeColors[self.theme + 24 + j * 3], self.themeColors[self.theme + 25 + j * 3], self.themeColors[self.theme + 26 + j * 3]);
-            for (int i = 0; i < self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound; i++) {
-                turtleGoto(self.windows[windowIndex].windowCoords[0] + i * xquantum, self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[j]].r -> data[self.osc[oscIndex].leftBound + i].d - self.osc[oscIndex].bottomBound) / (self.osc[oscIndex].topBound - self.osc[oscIndex].bottomBound)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
-                turtlePenDown();
-            }
-            turtlePenUp();
         }
         /* render mouse */
         // if (self.windowRender -> data[self.windowRender -> length - 1].i >= WINDOW_OSC) {
@@ -1273,7 +1301,8 @@ void renderFreqData() {
                 turtlePenColor(0, 0, 0);
                 textGLWriteString(sampleValue, boxX + 2, boxY - 1, 8, 0);
                 /* render top box */
-                sprintf(sampleValue, "%.1lfHz", sample / (dataLength / self.osc[self.freqOscIndex].samplesPerSecond));
+                double samplesPerSecond = self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> data[0].d;
+                sprintf(sampleValue, "%.1lfHz", sample / (dataLength / samplesPerSecond));
                 double boxLength2 = textGLGetStringLength(sampleValue, 8);
                 double boxX2 = sampleX - boxLength2 / 2;
                 if (boxX2 - 5 < self.windows[windowIndex].windowCoords[0]) {
