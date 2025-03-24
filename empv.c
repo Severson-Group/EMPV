@@ -79,6 +79,7 @@ typedef struct { // general window attributes
     list_t *dials;
     list_t *switches;
     list_t *dropdowns;
+    int dropdownLogicIndex;
 } window_t;
 
 typedef struct {
@@ -96,7 +97,6 @@ typedef struct { // oscilloscope view
     int rightBound; // right bound (index in data list) - global per oscilloscope
     double bottomBound[4]; // bottom bound (y value) - local per channel
     double topBound[4]; // top bound (y value) - local per channel
-    int dropdownLogicIndex;
     double dummyTopBound; // dummy top bound for manipulation via dial
     double windowSize; // size of window (index in data list) - global per oscilloscope
     int stop; // pause and unpause - global per oscilloscope
@@ -133,6 +133,7 @@ typedef struct { // all the empv shared state is here
         int themeDark;
         double themeColors[90];
     /* oscilloscope view */
+        list_t *oscTitles; // list of oscilloscope titles
         oscilloscope_t osc[12]; // up to 12 oscilloscopes
         int newOsc;
     /* frequency view */
@@ -451,12 +452,12 @@ void createNewOsc() {
     self.osc[self.newOsc].topBound[1] = 100;
     self.osc[self.newOsc].topBound[2] = 100;
     self.osc[self.newOsc].topBound[3] = 100;
-    self.osc[self.newOsc].dropdownLogicIndex = -1;
     self.osc[self.newOsc].dummyTopBound = 100;
     self.osc[self.newOsc].windowSize = 200;
     self.osc[self.newOsc].stop = 0;
     int oscIndex = ilog2(WINDOW_OSC) + self.newOsc;
     sprintf(self.windows[oscIndex].title, "Oscilloscope %d", self.newOsc + 1);
+    list_append(self.oscTitles, (unitype) self.windows[oscIndex].title, 's');
     self.windows[oscIndex].windowCoords[0] = -317;
     self.windows[oscIndex].windowCoords[1] = 0;
     self.windows[oscIndex].windowCoords[2] = -2;
@@ -480,6 +481,7 @@ void createNewOsc() {
     list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[2], WINDOW_OSC * pow2(self.newOsc), -65, -50 - self.windows[oscIndex].windowTop, 8), 'p');
     list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[1], WINDOW_OSC * pow2(self.newOsc), -65, -30 - self.windows[oscIndex].windowTop, 8), 'p');
     list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[0], WINDOW_OSC * pow2(self.newOsc), -65, -10 - self.windows[oscIndex].windowTop, 8), 'p');
+    self.windows[oscIndex].dropdownLogicIndex = -1;
     list_append(self.windowRender, (unitype) (WINDOW_OSC * pow2(self.newOsc)), 'i');
     self.newOsc++;
 }
@@ -551,6 +553,7 @@ void init() { // initialises the empv variabes (shared state)
     self.dialAnchorY = 0;
     /* osc */
     self.newOsc = 0;
+    self.oscTitles = list_init();
     createNewOsc();
     /* frequency */
     self.windowData = list_init();
@@ -579,6 +582,14 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[freqIndex].switches = list_init();
     self.windows[freqIndex].dropdowns = list_init();
     list_append(self.windows[freqIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.topFreq, WINDOW_FREQ, DIAL_EXP, -25, -25 - self.windows[freqIndex].windowTop, 8, 1, 500), 'p');
+    list_t *freqChannels = list_init();
+    list_append(freqChannels, (unitype) "Channel 1", 's');
+    list_append(freqChannels, (unitype) "Channel 2", 's');
+    list_append(freqChannels, (unitype) "Channel 3", 's');
+    list_append(freqChannels, (unitype) "Channel 4", 's');
+    list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(freqChannels, &self.freqOscChannel, pow2(freqIndex), -20, -65 - self.windows[freqIndex].windowTop, 8), 'p');
+    list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(self.oscTitles, &self.freqOscIndex, pow2(freqIndex), -20, -45 - self.windows[freqIndex].windowTop, 8), 'p');
+    self.windows[freqIndex].dropdownLogicIndex = -1;
     /* editor */
     int editorIndex = ilog2(WINDOW_EDITOR);
     strcpy(self.windows[editorIndex].title, "Editor");
@@ -743,8 +754,8 @@ void dropdownTick(int window) {
                 if (self.osc[oscIndex].selectedChannel == 3 - i) {
                     turtleRectangle(dropdownX - dropdown -> size - xfactor - 1, dropdownY - dropdown -> size * 0.7 - 1, dropdownX + dropdown -> size + 10 + 1, dropdownY + dropdown -> size * 0.7 + 1, self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11], 0);
                 }
-                logicIndex = self.osc[oscIndex].dropdownLogicIndex;
             }
+            logicIndex = self.windows[window].dropdownLogicIndex;
             if (dropdown -> status == -1) {
                 turtleRectangle(dropdownX - dropdown -> size - xfactor, dropdownY - dropdown -> size * 0.7, dropdownX + dropdown -> size + 10, dropdownY + dropdown -> size * 0.7, self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
             } else if (dropdown -> status >= 1) {
@@ -826,10 +837,7 @@ void dropdownTick(int window) {
             if (dropdown -> status >= 1) {
                 logicIndex = i;
             }
-            if (windowID >= WINDOW_OSC) {
-                int oscIndex = window - ilog2(WINDOW_OSC);
-                self.osc[oscIndex].dropdownLogicIndex = logicIndex;
-            }
+            self.windows[window].dropdownLogicIndex = logicIndex;
             turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
             textGLWriteString(dropdown -> options -> data[dropdown -> index].s, dropdownX, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1], dropdown -> size - 1, 100);
             if (dropdown -> status >= 1) {
@@ -1205,7 +1213,7 @@ void renderOscData(int oscIndex) {
                 if (boxX2 + boxLength2 + self.windows[windowIndex].windowSide + 5 > self.windows[windowIndex].windowCoords[2]) {
                     boxX2 = self.windows[windowIndex].windowCoords[2] - boxLength2 - self.windows[windowIndex].windowSide - 5;
                 }
-                turtleRectangle(boxX2 - 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 15, boxX2 + boxLength2 + 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 5, 215, 215, 215, 0);
+                turtleRectangle(boxX2 - 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 16, boxX2 + boxLength2 + 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 5, 215, 215, 215, 0);
                 turtlePenColor(0, 0, 0);
                 textGLWriteString(sampleValue, boxX2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 11, 8, 0);
             }
@@ -1265,8 +1273,12 @@ void renderFreqData() {
     int threshold = (dataLength) * 0.1;
     double damping = 1.0 / threshold;
     list_clear(self.windowData);
+    if (self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> length < self.osc[self.freqOscIndex].rightBound) {
+        turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+        return;
+    }
     for (int i = 0; i < dataLength; i++) {
-        double dataPoint = self.data -> data[self.osc[self.freqOscIndex].dataIndex[0]].r -> data[i + self.osc[self.freqOscIndex].leftBound].d;
+        double dataPoint = self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> data[i + self.osc[self.freqOscIndex].leftBound].d;
         if (i < threshold) {
             dataPoint *= damping * (i + 1);
         }
@@ -1303,7 +1315,7 @@ void renderFreqData() {
         // if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_FREQ) {
             if (self.mx > self.windows[windowIndex].windowCoords[0] && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) {
                 double sample = (self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum + self.freqLeftBound;
-                if (self.osc[self.freqOscIndex].leftBound + sample >= self.data -> data[self.osc[self.freqOscIndex].dataIndex[0]].r -> length) {
+                if (self.osc[self.freqOscIndex].leftBound + sample >= self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> length) {
                     return;
                 }
                 int roundedSample = round(sample);
