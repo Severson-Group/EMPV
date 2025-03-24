@@ -83,9 +83,10 @@ typedef struct { // general window attributes
 } window_t;
 
 typedef struct {
-    int triggerType;
-    int triggerIndex;
-    list_t *lastTriggerIndex;
+    double threshold;
+    int type;
+    int index;
+    list_t *lastIndex;
 } trigger_settings_t;
 
 typedef struct { // oscilloscope view
@@ -429,9 +430,10 @@ void createNewOsc() {
     if (self.newOsc > 3) {
         return;
     }
-    self.osc[self.newOsc].trigger.triggerType = TRIGGER_NONE;
-    self.osc[self.newOsc].trigger.triggerIndex = 0;
-    self.osc[self.newOsc].trigger.lastTriggerIndex = list_init();
+    self.osc[self.newOsc].trigger.threshold = 0.0;
+    self.osc[self.newOsc].trigger.type = TRIGGER_NONE;
+    self.osc[self.newOsc].trigger.index = 0;
+    self.osc[self.newOsc].trigger.lastIndex = list_init();
     if (self.logVariables -> length > 0) {
         self.osc[self.newOsc].dataIndex[0] = 1; // Demo 1
     } else {
@@ -476,7 +478,8 @@ void createNewOsc() {
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("X Scale", &self.osc[self.newOsc].windowSize, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -25 - self.windows[oscIndex].windowTop, 8, 4, 1024), 'p');
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[self.newOsc].dummyTopBound, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -65 - self.windows[oscIndex].windowTop, 8, 1, 10000), 'p');
     list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Pause", &self.osc[self.newOsc].stop, WINDOW_OSC * pow2(self.newOsc), -25, -100 - self.windows[oscIndex].windowTop, 8), 'p');
-    list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Trigger", &self.osc[self.newOsc].trigger.triggerType, WINDOW_OSC * pow2(self.newOsc), -25, -130 - self.windows[oscIndex].windowTop, 8), 'p');
+    list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Trigger", &self.osc[self.newOsc].trigger.type, WINDOW_OSC * pow2(self.newOsc), -75, -100 - self.windows[oscIndex].windowTop, 8), 'p');
+    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Threshold", &self.osc[self.newOsc].trigger.threshold, WINDOW_OSC * pow2(self.newOsc), DIAL_LINEAR, -75, -135 - self.windows[oscIndex].windowTop, 8, -100, 100), 'p');
     list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[3], WINDOW_OSC * pow2(self.newOsc), -65, -70 - self.windows[oscIndex].windowTop, 8), 'p');
     list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[2], WINDOW_OSC * pow2(self.newOsc), -65, -50 - self.windows[oscIndex].windowTop, 8), 'p');
     list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[1], WINDOW_OSC * pow2(self.newOsc), -65, -30 - self.windows[oscIndex].windowTop, 8), 'p');
@@ -1116,35 +1119,35 @@ void renderOscData(int oscIndex) {
     self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] * -1;
     /* set left and right bounds */
     if (!self.osc[oscIndex].stop) {
-        if (self.osc[oscIndex].trigger.triggerType == TRIGGER_NONE) {
-            list_clear(self.osc[oscIndex].trigger.lastTriggerIndex);
+        if (self.osc[oscIndex].trigger.type == TRIGGER_NONE) {
+            list_clear(self.osc[oscIndex].trigger.lastIndex);
             setBoundsNoTrigger(oscIndex, 0);
         } else {
-            self.osc[oscIndex].rightBound = self.osc[oscIndex].trigger.triggerIndex;
+            self.osc[oscIndex].rightBound = self.osc[oscIndex].trigger.index;
             if (self.osc[oscIndex].rightBound > self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length) {
                 self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length;
             }
-            self.osc[oscIndex].leftBound = self.osc[oscIndex].trigger.triggerIndex - self.osc[oscIndex].windowSize;
+            self.osc[oscIndex].leftBound = self.osc[oscIndex].trigger.index - self.osc[oscIndex].windowSize;
             if (self.osc[oscIndex].leftBound < 0) {
                 self.osc[oscIndex].leftBound = 1;
             }
 
             /* identify triggerIndex (trigger index is right side of window) */
             int dataLength = self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length;
-            if (self.osc[oscIndex].trigger.lastTriggerIndex -> length > 0 && self.osc[oscIndex].trigger.lastTriggerIndex -> data[0].i < dataLength) {
-                self.osc[oscIndex].trigger.triggerIndex = self.osc[oscIndex].trigger.lastTriggerIndex -> data[0].i;
-                list_delete(self.osc[oscIndex].trigger.lastTriggerIndex, 0);
+            if (self.osc[oscIndex].trigger.lastIndex -> length > 0 && self.osc[oscIndex].trigger.lastIndex -> data[0].i < dataLength) {
+                self.osc[oscIndex].trigger.index = self.osc[oscIndex].trigger.lastIndex -> data[0].i;
+                list_delete(self.osc[oscIndex].trigger.lastIndex, 0);
             }
-            if (self.osc[oscIndex].trigger.triggerIndex == 0) {
+            if (self.osc[oscIndex].trigger.index == 0) {
                 setBoundsNoTrigger(oscIndex, 0);
             }
-            if (self.osc[oscIndex].trigger.triggerType == TRIGGER_RISING_EDGE) {
+            if (self.osc[oscIndex].trigger.type == TRIGGER_RISING_EDGE) {
                 if (self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 2].d < 0 && self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 1].d >= 0) {
-                    list_append(self.osc[oscIndex].trigger.lastTriggerIndex, (unitype) (dataLength - 2), 'i');
+                    list_append(self.osc[oscIndex].trigger.lastIndex, (unitype) (dataLength - 2), 'i');
                 }
             }
-            // printf("triggerIndex %d\n", self.osc[oscIndex].trigger.triggerIndex);
-            // list_print(self.osc[oscIndex].trigger.lastTriggerIndex);
+            // printf("triggerIndex %d\n", self.osc[oscIndex].trigger.index);
+            // list_print(self.osc[oscIndex].trigger.lastIndex);
         }
     } else {
         setBoundsNoTrigger(oscIndex, 1);
