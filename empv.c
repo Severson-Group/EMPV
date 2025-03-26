@@ -1142,12 +1142,12 @@ void renderOscData(int oscIndex) {
                 setBoundsNoTrigger(oscIndex, 0);
             }
             if (self.osc[oscIndex].trigger.type == TRIGGER_RISING_EDGE) {
-                if (self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 2].d < 0 && self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 1].d >= 0) {
+                if (self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 2].d < self.osc[oscIndex].trigger.threshold && self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 1].d >= self.osc[oscIndex].trigger.threshold) {
                     list_append(self.osc[oscIndex].trigger.lastIndex, (unitype) (dataLength - 2), 'i');
                 }
             }
-            // printf("triggerIndex %d\n", self.osc[oscIndex].trigger.index);
-            // list_print(self.osc[oscIndex].trigger.lastIndex);
+            printf("triggerIndex %d\n", self.osc[oscIndex].trigger.index);
+            list_print(self.osc[oscIndex].trigger.lastIndex);
         }
     } else {
         setBoundsNoTrigger(oscIndex, 1);
