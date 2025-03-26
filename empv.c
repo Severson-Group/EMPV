@@ -1156,7 +1156,22 @@ void renderOscData(int oscIndex) {
         /* render window background */
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         turtlePenSize(1);
+        double dashedY = (self.osc[oscIndex].trigger.threshold - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+        if (dashedY < self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop && dashedY > self.windows[windowIndex].windowCoords[1]) {
+            turtlePenShape("none");
+            turtlePenColorAlpha(0, 0, 0, 200);
+            double dashedX = self.windows[windowIndex].windowCoords[0] + (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0]) / 40;
+            for (int i = 0; i < 20; i++) {
+                turtleGoto(dashedX, dashedY);
+                turtlePenDown();
+                dashedX += (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0]) / 40;
+                turtleGoto(dashedX, dashedY);
+                turtlePenUp();
+                dashedX += (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0]) / 40;
+            }
+        }
         turtlePenColor(0, 0, 0);
+        turtlePenShape("circle");
         turtleGoto(self.windows[windowIndex].windowCoords[0], (self.windows[windowIndex].windowCoords[1] - self.windows[windowIndex].windowTop + self.windows[windowIndex].windowCoords[3]) / 2);
         turtlePenDown();
         turtleGoto(self.windows[windowIndex].windowCoords[2], (self.windows[windowIndex].windowCoords[1] - self.windows[windowIndex].windowTop + self.windows[windowIndex].windowCoords[3]) / 2);
