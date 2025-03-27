@@ -29,6 +29,7 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 #define WINDOW_OSC      4
 
 #define TRIGGER_TIMEOUT 50
+#define PHASE_THRESHOLD 0.5
 
 enum trigger_type {
     TRIGGER_NONE = 0,
@@ -149,6 +150,7 @@ typedef struct { // all the empv shared state is here
     /* frequency view */
         list_t *windowData; // segment of normal data through windowing function
         list_t *freqData; // frequency data
+        list_t *phaseData; // phase data
         int freqOscIndex; // referenced oscilloscope
         int freqOscChannel; // referenced channel
         int freqLeftBound;
@@ -201,7 +203,7 @@ void dropdownCalculateMax(dropdown_t *dropdown) {
     }
 }
 
-dropdown_t *dropdownInit(list_t *options, int *variable, int window, double xOffset, double yOffset, double size) {
+dropdown_t *dropdownInit(list_t *options, int *variable, int window, double xOffset, double yOffset, double size, dropdown_metadata_t metadata) {
     dropdown_t *dropdown = malloc(sizeof(dropdown_t));
     dropdown -> options = options;
     dropdown -> index = *variable;
@@ -211,6 +213,7 @@ dropdown_t *dropdownInit(list_t *options, int *variable, int window, double xOff
     dropdown -> position[1] = yOffset;
     dropdown -> size = size;
     dropdown -> variable = variable;
+    dropdown -> metadata = metadata;
     dropdownCalculateMax(dropdown);
     return dropdown;
 }
@@ -242,7 +245,7 @@ double angleBetween(double x1, double y1, double x2, double y2) {
     return output;
 }
 
-void fft_list_wrapper(list_t *samples, list_t *output) {
+void fft_list_wrapper(list_t *samples, list_t *frequencyOutput, list_t *phaseOutput) {
     int dimension = samples -> length;
     if (dimension <= 0) {
         return;
@@ -259,8 +262,13 @@ void fft_list_wrapper(list_t *samples, list_t *output) {
     /* parse */
     for (int i = 0; i < dimension; i++) {
         double fftSample = sqrt(complexSamples[i].r * complexSamples[i].r + complexSamples[i].i * complexSamples[i].i) / self.osc[0].windowSize; // divide by closest rounded down power of 2 instead of window size
-        double fftPhase = atan(complexSamples[i].i / complexSamples[i].r);
-        list_append(output, (unitype) fftSample, 'd');
+        list_append(frequencyOutput, (unitype) fftSample, 'd');
+        double fftPhase = 0.0;
+        /* https://www.gaussianwaves.com/2015/11/interpreting-fft-results-obtaining-magnitude-and-phase-information/ */
+        if (fftSample > PHASE_THRESHOLD) {
+            fftPhase = atan2(complexSamples[i].i, complexSamples[i].r);
+        }
+        list_append(phaseOutput, (unitype) fftPhase, 'd');
     }
 }
 
@@ -489,10 +497,16 @@ void createNewOsc() {
     list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Pause", &self.osc[self.newOsc].stop, WINDOW_OSC * pow2(self.newOsc), -25, -100 - self.windows[oscIndex].windowTop, 8), 'p');
     list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Trigger", &self.osc[self.newOsc].trigger.type, WINDOW_OSC * pow2(self.newOsc), -75, -100 - self.windows[oscIndex].windowTop, 8), 'p');
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Threshold", &self.osc[self.newOsc].trigger.threshold, WINDOW_OSC * pow2(self.newOsc), DIAL_LINEAR, -75, -135 - self.windows[oscIndex].windowTop, 8, -100, 100), 'p');
-    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[3], WINDOW_OSC * pow2(self.newOsc), -65, -70 - self.windows[oscIndex].windowTop, 8), 'p');
-    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[2], WINDOW_OSC * pow2(self.newOsc), -65, -50 - self.windows[oscIndex].windowTop, 8), 'p');
-    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[1], WINDOW_OSC * pow2(self.newOsc), -65, -30 - self.windows[oscIndex].windowTop, 8), 'p');
-    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[0], WINDOW_OSC * pow2(self.newOsc), -65, -10 - self.windows[oscIndex].windowTop, 8), 'p');
+    dropdown_metadata_t metadata;
+    metadata.inUse = 1;
+    metadata.selectIndex = 3;
+    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[3], WINDOW_OSC * pow2(self.newOsc), -65, -70 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
+    metadata.selectIndex = 2;
+    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[2], WINDOW_OSC * pow2(self.newOsc), -65, -50 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
+    metadata.selectIndex = 1;
+    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[1], WINDOW_OSC * pow2(self.newOsc), -65, -30 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
+    metadata.selectIndex = 0;
+    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[0], WINDOW_OSC * pow2(self.newOsc), -65, -10 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
     self.windows[oscIndex].dropdownLogicIndex = -1;
     list_append(self.windowRender, (unitype) (WINDOW_OSC * pow2(self.newOsc)), 'i');
     self.newOsc++;
@@ -506,7 +520,7 @@ void init() { // initialises the empv variabes (shared state)
         self.tcpAsciiReceiveBuffer[i] = 0;
     }
 /* color */
-    double themeCopy[72] = {
+    double themeCopy[78] = {
         /* light theme */
         255, 255, 255, // background color
         195, 195, 195, // window color
@@ -520,6 +534,7 @@ void init() { // initialises the empv variabes (shared state)
         255, 0, 0, // data color (channel 2)
         255, 0, 0, // data color (channel 3)
         255, 0, 0, // data color (channel 4)
+        255, 0, 0, // phase data color
         /* dark theme */
         60, 60, 60, // background color
         10, 10, 10, // window color
@@ -533,6 +548,7 @@ void init() { // initialises the empv variabes (shared state)
         74, 198, 174, // data color (channel 2)
         200, 200, 200, // data color (channel 3)
         145, 207, 214, // data color (channel 4)
+        255, 0, 0, // phase data color
     };
     memcpy(self.themeColors, themeCopy, sizeof(themeCopy));
     self.themeDark = sizeof(themeCopy) / sizeof(double) / 2;
@@ -570,6 +586,7 @@ void init() { // initialises the empv variabes (shared state)
     /* frequency */
     self.windowData = list_init();
     self.freqData = list_init();
+    self.phaseData = list_init();
     self.freqOscIndex = 0;
     self.freqOscChannel = 0;
     self.freqLeftBound = 0;
@@ -599,8 +616,10 @@ void init() { // initialises the empv variabes (shared state)
     list_append(freqChannels, (unitype) "Channel 2", 's');
     list_append(freqChannels, (unitype) "Channel 3", 's');
     list_append(freqChannels, (unitype) "Channel 4", 's');
-    list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(freqChannels, &self.freqOscChannel, pow2(freqIndex), -20, -65 - self.windows[freqIndex].windowTop, 8), 'p');
-    list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(self.oscTitles, &self.freqOscIndex, pow2(freqIndex), -20, -45 - self.windows[freqIndex].windowTop, 8), 'p');
+    dropdown_metadata_t metadata;
+    metadata.inUse = 0;
+    list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(freqChannels, &self.freqOscChannel, pow2(freqIndex), -20, -65 - self.windows[freqIndex].windowTop, 8, metadata), 'p');
+    list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(self.oscTitles, &self.freqOscIndex, pow2(freqIndex), -20, -45 - self.windows[freqIndex].windowTop, 8, metadata), 'p');
     self.windows[freqIndex].dropdownLogicIndex = -1;
     /* editor */
     int editorIndex = ilog2(WINDOW_EDITOR);
@@ -761,9 +780,9 @@ void dropdownTick(int window) {
                 self.windows[window].windowSide = xfactor - dropdown -> position[0] + 10;
             }
             double itemHeight = (dropdown -> size * 1.5);
-            if (windowID >= WINDOW_OSC) {
+            if (dropdown -> metadata.inUse) {
                 int oscIndex = window - ilog2(WINDOW_OSC);
-                if (self.osc[oscIndex].selectedChannel == 3 - i) {
+                if (self.osc[oscIndex].selectedChannel == dropdown -> metadata.selectIndex) {
                     turtleRectangle(dropdownX - dropdown -> size - xfactor - 1, dropdownY - dropdown -> size * 0.7 - 1, dropdownX + dropdown -> size + 10 + 1, dropdownY + dropdown -> size * 0.7 + 1, self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11], 0);
                 }
             }
@@ -790,9 +809,9 @@ void dropdownTick(int window) {
                 if (dropdown -> status == -1) {
                     if (i > logicIndex && self.mouseDown) {
                         dropdown -> status = 1;
-                        if (windowID >= WINDOW_OSC) {
+                        if (dropdown -> metadata.inUse) {
                             int oscIndex = window - ilog2(WINDOW_OSC);
-                            self.osc[oscIndex].selectedChannel = 3 - i;
+                            self.osc[oscIndex].selectedChannel = dropdown -> metadata.selectIndex;
                         }
                     }
                 }
@@ -1106,6 +1125,13 @@ void renderWindow(int window) {
 void setBoundsNoTrigger(int oscIndex, int stopped) {
     if (!stopped) {
         self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> length;
+        for (int i = 1; i < 4; i++) {
+            if (self.osc[oscIndex].rightBound == 0) {
+                self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> length;
+            } else {
+                break;
+            }
+        }
     }
     if (self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound < self.osc[oscIndex].windowSize) {
         self.osc[oscIndex].leftBound = self.osc[oscIndex].rightBound - self.osc[oscIndex].windowSize;
@@ -1320,12 +1346,14 @@ void renderFreqData() {
         list_append(self.windowData, (unitype) dataPoint, 'd');
     }
     list_clear(self.freqData);
-    fft_list_wrapper(self.windowData, self.freqData);
+    list_clear(self.phaseData);
+    fft_list_wrapper(self.windowData, self.freqData, self.phaseData);
     double xquantum = (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0] - self.windows[windowIndex].windowSide) / ((self.windowData -> length - 2) / self.freqZoom) * 2;
     if (self.windows[windowIndex].minimize == 0) {
         /* render window background */
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         turtlePenSize(1);
+        /* render frequency data */
         turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
         if (self.freqData -> length % 2) {
             xquantum *= (self.freqData -> length - 2.0) / (self.freqData -> length - 1.0);
@@ -1343,6 +1371,25 @@ void renderFreqData() {
             turtlePenDown();
         }
         turtlePenUp();
+        /* render phase data */
+        turtlePenColor(self.themeColors[self.theme + 36], self.themeColors[self.theme + 37], self.themeColors[self.theme + 38]);
+        if (self.phaseData -> length % 2) {
+            xquantum *= (self.phaseData -> length - 2.0) / (self.phaseData -> length - 1.0);
+        }
+        self.freqRightBound = 1 + self.freqLeftBound + (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]) / xquantum;
+        if (self.freqRightBound > self.phaseData -> length / 2 + self.phaseData -> length % 2) {
+            self.freqRightBound = self.phaseData -> length / 2 + self.phaseData -> length % 2;
+        }
+        for (int i = self.freqLeftBound; i < self.freqRightBound; i++) { // only render the bottom half of frequency graph
+            double magnitude = self.phaseData -> data[i].d;
+            if (magnitude < 0) {
+                magnitude *= -1;
+            }
+            turtleGoto(self.windows[windowIndex].windowCoords[0] + (i - self.freqLeftBound) * xquantum, self.windows[windowIndex].windowCoords[1] + 9 + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
+            turtlePenDown();
+        }
+        turtlePenUp();
+
         /* render mouse */
         // if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_FREQ) {
             if (self.mx > self.windows[windowIndex].windowCoords[0] && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) {
