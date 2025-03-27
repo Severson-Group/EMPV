@@ -64,6 +64,7 @@ typedef struct {
 
 typedef struct { // dropdown 
     list_t *options;
+    char label[24];
     int index;
     int window;
     int status;
@@ -168,7 +169,11 @@ empv_t self; // global state
 /* initialise UI elements */
 dial_t *dialInit(char *label, double *variable, int window, int type, double xOffset, double yOffset, double size, double bottom, double top) {
     dial_t *dial = malloc(sizeof(dial_t));
-    memcpy(dial -> label, label, strlen(label) + 1);
+    if (label == NULL) {
+        memcpy(dial -> label, "", strlen("") + 1);
+    } else {
+        memcpy(dial -> label, label, strlen(label) + 1);
+    }
     dial -> status[0] = 0;
     dial -> window = window;
     dial -> type = type;
@@ -183,7 +188,11 @@ dial_t *dialInit(char *label, double *variable, int window, int type, double xOf
 
 switch_t *switchInit(char *label, int *variable, int window, double xOffset, double yOffset, double size) {
     switch_t *switchp = malloc(sizeof(switch_t));
-    memcpy(switchp -> label, label, strlen(label) + 1);
+    if (label == NULL) {
+        memcpy(switchp -> label, "", strlen("") + 1);
+    } else {
+        memcpy(switchp -> label, label, strlen(label) + 1);
+    }
     switchp -> status = 0;
     switchp -> window = window;
     switchp -> position[0] = xOffset;
@@ -203,8 +212,13 @@ void dropdownCalculateMax(dropdown_t *dropdown) {
     }
 }
 
-dropdown_t *dropdownInit(list_t *options, int *variable, int window, double xOffset, double yOffset, double size, dropdown_metadata_t metadata) {
+dropdown_t *dropdownInit(char *label, list_t *options, int *variable, int window, double xOffset, double yOffset, double size, dropdown_metadata_t metadata) {
     dropdown_t *dropdown = malloc(sizeof(dropdown_t));
+    if (label == NULL) {
+        memcpy(dropdown -> label, "", strlen("") + 1);
+    } else {
+        memcpy(dropdown -> label, label, strlen(label) + 1);
+    }
     dropdown -> options = options;
     dropdown -> index = *variable;
     dropdown -> status = 0;
@@ -495,18 +509,24 @@ void createNewOsc() {
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("X Scale", &self.osc[self.newOsc].windowSize, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -25 - self.windows[oscIndex].windowTop, 8, 4, 1024), 'p');
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[self.newOsc].dummyTopBound, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -65 - self.windows[oscIndex].windowTop, 8, 1, 10000), 'p');
     list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Pause", &self.osc[self.newOsc].stop, WINDOW_OSC * pow2(self.newOsc), -25, -100 - self.windows[oscIndex].windowTop, 8), 'p');
-    list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Trigger", &self.osc[self.newOsc].trigger.type, WINDOW_OSC * pow2(self.newOsc), -75, -100 - self.windows[oscIndex].windowTop, 8), 'p');
+    // list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Trigger", &self.osc[self.newOsc].trigger.type, WINDOW_OSC * pow2(self.newOsc), -75, -100 - self.windows[oscIndex].windowTop, 8), 'p');
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Threshold", &self.osc[self.newOsc].trigger.threshold, WINDOW_OSC * pow2(self.newOsc), DIAL_LINEAR, -75, -135 - self.windows[oscIndex].windowTop, 8, -100, 100), 'p');
+    list_t *triggerOptions = list_init();
+    list_append(triggerOptions, (unitype) "None", 's');
+    list_append(triggerOptions, (unitype) "Rising", 's');
+    list_append(triggerOptions, (unitype) "Falling", 's');
     dropdown_metadata_t metadata;
+    metadata.inUse = 0;
+    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit("Trigger", triggerOptions, &self.osc[self.newOsc].trigger.type, WINDOW_OSC * pow2(self.newOsc), -70, -100 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
     metadata.inUse = 1;
     metadata.selectIndex = 3;
-    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[3], WINDOW_OSC * pow2(self.newOsc), -65, -70 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
+    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, self.logVariables, &self.osc[self.newOsc].dataIndex[3], WINDOW_OSC * pow2(self.newOsc), -65, -70 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
     metadata.selectIndex = 2;
-    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[2], WINDOW_OSC * pow2(self.newOsc), -65, -50 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
+    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, self.logVariables, &self.osc[self.newOsc].dataIndex[2], WINDOW_OSC * pow2(self.newOsc), -65, -50 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
     metadata.selectIndex = 1;
-    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[1], WINDOW_OSC * pow2(self.newOsc), -65, -30 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
+    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, self.logVariables, &self.osc[self.newOsc].dataIndex[1], WINDOW_OSC * pow2(self.newOsc), -65, -30 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
     metadata.selectIndex = 0;
-    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(self.logVariables, &self.osc[self.newOsc].dataIndex[0], WINDOW_OSC * pow2(self.newOsc), -65, -10 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
+    list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, self.logVariables, &self.osc[self.newOsc].dataIndex[0], WINDOW_OSC * pow2(self.newOsc), -65, -10 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
     self.windows[oscIndex].dropdownLogicIndex = -1;
     list_append(self.windowRender, (unitype) (WINDOW_OSC * pow2(self.newOsc)), 'i');
     self.newOsc++;
@@ -618,8 +638,8 @@ void init() { // initialises the empv variabes (shared state)
     list_append(freqChannels, (unitype) "Channel 4", 's');
     dropdown_metadata_t metadata;
     metadata.inUse = 0;
-    list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(freqChannels, &self.freqOscChannel, pow2(freqIndex), -20, -65 - self.windows[freqIndex].windowTop, 8, metadata), 'p');
-    list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(self.oscTitles, &self.freqOscIndex, pow2(freqIndex), -20, -45 - self.windows[freqIndex].windowTop, 8, metadata), 'p');
+    list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, freqChannels, &self.freqOscChannel, pow2(freqIndex), -20, -65 - self.windows[freqIndex].windowTop, 8, metadata), 'p');
+    list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, self.oscTitles, &self.freqOscIndex, pow2(freqIndex), -20, -45 - self.windows[freqIndex].windowTop, 8, metadata), 'p');
     self.windows[freqIndex].dropdownLogicIndex = -1;
     /* editor */
     int editorIndex = ilog2(WINDOW_EDITOR);
@@ -775,6 +795,9 @@ void dropdownTick(int window) {
         if ((dropdown -> window & windowID) != 0) {
             double dropdownX = self.windows[window].windowCoords[2] + dropdown -> position[0];
             double dropdownY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1];
+            if (strlen(dropdown -> label) > 0) {
+                textGLWriteString(dropdown -> label, dropdownX - 5, dropdownY + 15, dropdown -> size - 1, 50);
+            }
             double xfactor = textGLGetStringLength(dropdown -> options -> data[dropdown -> index].s, dropdown -> size - 1);
             if (self.windows[window].windowSide < (xfactor - dropdown -> position[0] + 10)) {
                 self.windows[window].windowSide = xfactor - dropdown -> position[0] + 10;
@@ -1183,6 +1206,11 @@ void renderOscData(int oscIndex) {
             }
             if (self.osc[oscIndex].trigger.type == TRIGGER_RISING_EDGE) {
                 if (self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 2].d < self.osc[oscIndex].trigger.threshold && self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 1].d >= self.osc[oscIndex].trigger.threshold) {
+                    list_append(self.osc[oscIndex].trigger.lastIndex, (unitype) (dataLength - 2), 'i');
+                }
+            }
+            if (self.osc[oscIndex].trigger.type == TRIGGER_FALLING_EDGE) {
+                if (self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 2].d > self.osc[oscIndex].trigger.threshold && self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 1].d <= self.osc[oscIndex].trigger.threshold) {
                     list_append(self.osc[oscIndex].trigger.lastIndex, (unitype) (dataLength - 2), 'i');
                 }
             }
