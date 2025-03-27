@@ -28,6 +28,8 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 #define WINDOW_EDITOR   2
 #define WINDOW_OSC      4
 
+#define TRIGGER_TIMEOUT 50
+
 enum trigger_type {
     TRIGGER_NONE = 0,
     TRIGGER_RISING_EDGE,
@@ -54,6 +56,11 @@ typedef struct { // switch
     int *variable;
 } switch_t;
 
+typedef struct {
+    char inUse;
+    int selectIndex;
+} dropdown_metadata_t;
+
 typedef struct { // dropdown 
     list_t *options;
     int index;
@@ -63,6 +70,7 @@ typedef struct { // dropdown
     double position[2]; // xOffset, yOffset
     double maxXfactor;
     int *variable;
+    dropdown_metadata_t metadata;
 } dropdown_t;
 
 typedef struct { // general window attributes
@@ -86,6 +94,7 @@ typedef struct {
     double threshold;
     int type;
     int index;
+    int timeout;
     list_t *lastIndex;
 } trigger_settings_t;
 
@@ -1136,7 +1145,12 @@ void renderOscData(int oscIndex) {
             int dataLength = self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length;
             if (self.osc[oscIndex].trigger.lastIndex -> length > 0 && self.osc[oscIndex].trigger.lastIndex -> data[0].i < dataLength) {
                 self.osc[oscIndex].trigger.index = self.osc[oscIndex].trigger.lastIndex -> data[0].i;
+                self.osc[oscIndex].trigger.timeout = 0;
                 list_delete(self.osc[oscIndex].trigger.lastIndex, 0);
+            }
+            self.osc[oscIndex].trigger.timeout++;
+            if (self.osc[oscIndex].trigger.timeout > TRIGGER_TIMEOUT) {
+                self.osc[oscIndex].trigger.index = 0;
             }
             if (self.osc[oscIndex].trigger.index == 0) {
                 setBoundsNoTrigger(oscIndex, 0);
@@ -1146,8 +1160,8 @@ void renderOscData(int oscIndex) {
                     list_append(self.osc[oscIndex].trigger.lastIndex, (unitype) (dataLength - 2), 'i');
                 }
             }
-            printf("triggerIndex %d\n", self.osc[oscIndex].trigger.index);
-            list_print(self.osc[oscIndex].trigger.lastIndex);
+            // printf("triggerIndex %d\n", self.osc[oscIndex].trigger.index);
+            // list_print(self.osc[oscIndex].trigger.lastIndex);
         }
     } else {
         setBoundsNoTrigger(oscIndex, 1);
