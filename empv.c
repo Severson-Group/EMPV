@@ -26,7 +26,8 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 
 #define WINDOW_FREQ     1
 #define WINDOW_EDITOR   2
-#define WINDOW_OSC      4
+#define WINDOW_ORBIT    4
+#define WINDOW_OSC      8
 
 #define TRIGGER_TIMEOUT 50
 #define PHASE_THRESHOLD 0.5
@@ -1411,7 +1412,7 @@ void renderFreqData() {
         for (int i = self.freqLeftBound; i < self.freqRightBound; i++) { // only render the bottom half of frequency graph
             double magnitude = self.phaseData -> data[i].d;
             if (magnitude < 0) {
-                magnitude *= -1;
+                // magnitude *= -1;
             }
             turtleGoto(self.windows[windowIndex].windowCoords[0] + (i - self.freqLeftBound) * xquantum, self.windows[windowIndex].windowCoords[1] + 9 + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
             turtlePenDown();
