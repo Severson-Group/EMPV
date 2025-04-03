@@ -159,6 +159,11 @@ typedef struct { // all the empv shared state is here
         int freqRightBound;
         double freqZoom;
         double topFreq; // top bound (y value)
+    /* orbit view */
+        double orbitXScale;
+        double orbitYScale;
+        double orbitSamples;
+        int orbitDataIndex[2]; // index of data list for orbit source (X, Y)
     /* editor view */
         double editorBottomBound;
         double editorWindowSize; // size of window
@@ -596,6 +601,7 @@ void init() { // initialises the empv variabes (shared state)
     self.windowRender = list_init();
     list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
     list_append(self.windowRender, (unitype) WINDOW_EDITOR, 'i');
+    list_append(self.windowRender, (unitype) WINDOW_ORBIT, 'i');
     self.anchorX = 0;
     self.anchorY = 0;
     self.dialAnchorX = 0;
@@ -642,10 +648,36 @@ void init() { // initialises the empv variabes (shared state)
     list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, freqChannels, &self.freqOscChannel, pow2(freqIndex), -20, -65 - self.windows[freqIndex].windowTop, 8, metadata), 'p');
     list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, self.oscTitles, &self.freqOscIndex, pow2(freqIndex), -20, -45 - self.windows[freqIndex].windowTop, 8, metadata), 'p');
     self.windows[freqIndex].dropdownLogicIndex = -1;
+    /* orbit */
+    self.orbitXScale = 20;
+    self.orbitYScale = 20;
+    self.orbitSamples = 20;
+    int orbitIndex = ilog2(WINDOW_ORBIT);
+    strcpy(self.windows[orbitIndex].title, "Orbit");
+    self.windows[orbitIndex].windowCoords[0] = -317;
+    self.windows[orbitIndex].windowCoords[1] = -161;
+    self.windows[orbitIndex].windowCoords[2] = -2;
+    self.windows[orbitIndex].windowCoords[3] = -5;
+    self.windows[orbitIndex].windowTop = 15;
+    self.windows[orbitIndex].windowSide = 50;
+    self.windows[orbitIndex].windowMinX = 60 + self.windows[orbitIndex].windowSide;
+    self.windows[orbitIndex].windowMinY = 120 + self.windows[orbitIndex].windowTop;
+    self.windows[orbitIndex].minimize = 0;
+    self.windows[orbitIndex].move = 0;
+    self.windows[orbitIndex].click = 0;
+    self.windows[orbitIndex].resize = 0;
+    self.windows[orbitIndex].dials = list_init();
+    self.windows[orbitIndex].switches = list_init();
+    self.windows[orbitIndex].dropdowns = list_init();
+    list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("Y source", self.logVariables, &self.orbitDataIndex[0], WINDOW_ORBIT, -60, -60 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
+    list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("X source", self.logVariables, &self.orbitDataIndex[1], WINDOW_ORBIT, -60, -25 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
+    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbitXScale, WINDOW_ORBIT, DIAL_EXP, -20, -25 - self.windows[orbitIndex].windowTop, 8, 1, 500), 'p');
+    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbitYScale, WINDOW_ORBIT, DIAL_EXP, -20, -60 - self.windows[orbitIndex].windowTop, 8, 1, 500), 'p');
+    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Samples", &self.orbitSamples, WINDOW_ORBIT, DIAL_EXP, -50, -90 - self.windows[orbitIndex].windowTop, 8, 1, 500), 'p');
     /* editor */
     int editorIndex = ilog2(WINDOW_EDITOR);
     strcpy(self.windows[editorIndex].title, "Editor");
-    self.windows[editorIndex].windowCoords[0] = -317;
+    self.windows[editorIndex].windowCoords[0] = 2;
     self.windows[editorIndex].windowCoords[1] = -161;
     self.windows[editorIndex].windowCoords[2] = 317;
     self.windows[editorIndex].windowCoords[3] = -5;
@@ -658,8 +690,8 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[editorIndex].click = 0;
     self.windows[editorIndex].resize = 0;
     self.windows[editorIndex].dials = list_init();
-    self.windows[editorIndex].switches = list_init();   
-    self.windows[editorIndex].dropdowns = list_init();    
+    self.windows[editorIndex].switches = list_init();
+    self.windows[editorIndex].dropdowns = list_init();
 }
 
 /* UI elements */
@@ -1225,7 +1257,7 @@ void renderOscData(int oscIndex) {
         /* render window background */
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         turtlePenSize(1);
-        double dashedY = (self.osc[oscIndex].trigger.threshold - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+        double dashedY = self.windows[windowIndex].windowCoords[1] + (self.osc[oscIndex].trigger.threshold - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
         if (dashedY < self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop && dashedY > self.windows[windowIndex].windowCoords[1]) {
             turtlePenShape("none");
             turtlePenColorAlpha(0, 0, 0, 200);
@@ -1499,6 +1531,32 @@ void renderEditorData() {
     }
 }
 
+void renderOrbitData() {
+    int windowIndex = ilog2(WINDOW_ORBIT);
+    if (self.windows[windowIndex].minimize == 0) {
+        /* render window background */
+        turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+    }
+    /* render data */
+    turtlePenSize(1);
+    turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
+    for (int i = 0; i < self.orbitSamples; i++) {
+        int xLength = self.data -> data[self.orbitDataIndex[0]].r -> length;
+        int yLength = self.data -> data[self.orbitDataIndex[1]].r -> length;
+        double orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2;
+        double orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2;
+        if (xLength >= i) {
+            orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + self.data -> data[self.orbitDataIndex[0]].r -> data[xLength - i - 1].d / self.orbitXScale * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
+        }
+        if (yLength >= i) {
+            orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + self.data -> data[self.orbitDataIndex[1]].r -> data[yLength - i - 1].d / self.orbitYScale * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);;
+        }
+        turtleGoto(orbitX, orbitY);
+        turtlePenDown();
+    }
+    turtlePenUp();
+}
+
 void renderOrder() {
     for (int i = 0; i < self.windowRender -> length; i++) {
         if (self.windowRender -> data[i].i >= WINDOW_OSC) {
@@ -1507,6 +1565,8 @@ void renderOrder() {
             renderFreqData();
         } else if (self.windowRender -> data[i].i == WINDOW_EDITOR) {
             renderEditorData();
+        } else if (self.windowRender -> data[i].i == WINDOW_ORBIT) {
+            renderOrbitData();
         }
         renderWindow(ilog2(self.windowRender -> data[i].i));
     }
@@ -1750,6 +1810,7 @@ int main(int argc, char *argv[]) {
             // list_append(self.data -> data[3].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
             list_append(self.data -> data[2].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 2) * 25), 'd');
             list_append(self.data -> data[3].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 4) * 25), 'd');
+            list_append(self.data -> data[4].r, (unitype) (sin(tick / 5.0 + M_PI / 2) * 25), 'd');
         }
         utilLoop();
         turtleGetMouseCoords(); // get the mouse coordinates (turtle.mouseX, turtle.mouseY)
@@ -1775,3 +1836,7 @@ int main(int argc, char *argv[]) {
     glfwTerminate();
     return 0;
 }
+
+ffmpeg -ss 30 -t 3 -i Screen Recording 2025-04-03 154135.mp4 \
+    -vf "fps=10,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" \
+    -loop 0 output.gif
