@@ -649,8 +649,8 @@ void init() { // initialises the empv variabes (shared state)
     list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, self.oscTitles, &self.freqOscIndex, pow2(freqIndex), -20, -45 - self.windows[freqIndex].windowTop, 8, metadata), 'p');
     self.windows[freqIndex].dropdownLogicIndex = -1;
     /* orbit */
-    self.orbitXScale = 20;
-    self.orbitYScale = 20;
+    self.orbitXScale = 70;
+    self.orbitYScale = 70;
     self.orbitSamples = 20;
     int orbitIndex = ilog2(WINDOW_ORBIT);
     strcpy(self.windows[orbitIndex].title, "Orbit");
@@ -1536,25 +1536,25 @@ void renderOrbitData() {
     if (self.windows[windowIndex].minimize == 0) {
         /* render window background */
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
-    }
-    /* render data */
-    turtlePenSize(1);
-    turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
-    for (int i = 0; i < self.orbitSamples; i++) {
-        int xLength = self.data -> data[self.orbitDataIndex[0]].r -> length;
-        int yLength = self.data -> data[self.orbitDataIndex[1]].r -> length;
-        double orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2;
-        double orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2;
-        if (xLength >= i) {
-            orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + self.data -> data[self.orbitDataIndex[0]].r -> data[xLength - i - 1].d / self.orbitXScale * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
+        /* render data */
+        turtlePenSize(1);
+        turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
+        for (int i = 0; i < self.orbitSamples; i++) {
+            int xLength = self.data -> data[self.orbitDataIndex[0]].r -> length;
+            int yLength = self.data -> data[self.orbitDataIndex[1]].r -> length;
+            double orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2;
+            double orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2;
+            if (xLength >= i) {
+                orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + self.data -> data[self.orbitDataIndex[0]].r -> data[xLength - i - 1].d / self.orbitXScale * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
+            }
+            if (yLength >= i) {
+                orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + self.data -> data[self.orbitDataIndex[1]].r -> data[yLength - i - 1].d / self.orbitYScale * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);;
+            }
+            turtleGoto(orbitX, orbitY);
+            turtlePenDown();
         }
-        if (yLength >= i) {
-            orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + self.data -> data[self.orbitDataIndex[1]].r -> data[yLength - i - 1].d / self.orbitYScale * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);;
-        }
-        turtleGoto(orbitX, orbitY);
-        turtlePenDown();
+        turtlePenUp();
     }
-    turtlePenUp();
 }
 
 void renderOrder() {
@@ -1836,7 +1836,3 @@ int main(int argc, char *argv[]) {
     glfwTerminate();
     return 0;
 }
-
-ffmpeg -ss 30 -t 3 -i Screen Recording 2025-04-03 154135.mp4 \
-    -vf "fps=10,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" \
-    -loop 0 output.gif
