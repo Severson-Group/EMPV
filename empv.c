@@ -89,7 +89,6 @@ typedef struct { // button
     int shape;
     double size;
     double position[2]; // xOffset, yOffset
-    double parameters[2]; // rectangle: width and height
     int *variable;
 } button_t;
 
@@ -186,6 +185,8 @@ typedef struct { // all the empv shared state is here
         double editorBottomBound;
         double editorWindowSize; // size of window
     /* info view */
+        int infoRefresh;
+        double infoAnimation;
 
 } empv_t;
 
@@ -255,6 +256,23 @@ dropdown_t *dropdownInit(char *label, list_t *options, int *variable, int window
     dropdown -> metadata = metadata;
     dropdownCalculateMax(dropdown);
     return dropdown;
+}
+
+button_t *buttonInit(char *label, int *variable, int window, double xOffset, double yOffset, double size, int shape) {
+    button_t *button = malloc(sizeof(button_t));
+    if (label == NULL) {
+        memcpy(button -> label, "", strlen("") + 1);
+    } else {
+        memcpy(button -> label, label, strlen(label) + 1);
+    }
+    button -> status = 0;
+    button -> window = window;
+    button -> shape = shape;
+    button -> position[0] = xOffset;
+    button -> position[1] = yOffset;
+    button -> size = size;
+    button -> variable = variable;
+    return button;
 }
 
 /* math functions*/
@@ -399,6 +417,17 @@ void *commsThreadFunction(void *arg) {
 } 
 
 void populateLoggedVariables() {
+    list_clear(self.data);
+    list_append(self.data, (unitype) list_init(), 'r'); // unused list
+
+    list_clear(self.logVariables);
+    list_clear(self.logSlots);
+    list_clear(self.logSockets);
+    list_clear(self.logSocketIDs);
+    list_append(self.logVariables, (unitype) "Unused", 's');
+    list_append(self.logSlots, (unitype) -1, 'i');
+    list_append(self.logSockets, (unitype) NULL, 'p');
+    list_append(self.logSocketIDs, (unitype) -1, 'i');
     if (self.commsEnabled == 0) {
         /* make demo slots */
         list_append(self.logVariables, (unitype) "Demo", 's');
@@ -717,15 +746,17 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[editorIndex].dropdowns = list_init();
     self.windows[editorIndex].buttons = list_init();
     /* info */
+    self.infoRefresh = 0;
+    self.infoAnimation = 0;
     int infoIndex = ilog2(WINDOW_INFO);
     strcpy(self.windows[infoIndex].title, "Info");
     self.windows[infoIndex].windowCoords[0] = 2;
     self.windows[infoIndex].windowCoords[1] = -161;
-    self.windows[infoIndex].windowCoords[2] = 317;
+    self.windows[infoIndex].windowCoords[2] = 162;
     self.windows[infoIndex].windowCoords[3] = -5;
     self.windows[infoIndex].windowTop = 15;
     self.windows[infoIndex].windowSide = 0;
-    self.windows[infoIndex].windowMinX = 60 + self.windows[infoIndex].windowSide;
+    self.windows[infoIndex].windowMinX = 100 + self.windows[infoIndex].windowSide;
     self.windows[infoIndex].windowMinY = 120 + self.windows[infoIndex].windowTop;
     self.windows[infoIndex].minimize = 0;
     self.windows[infoIndex].move = 0;
@@ -735,6 +766,7 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[infoIndex].switches = list_init();
     self.windows[infoIndex].dropdowns = list_init();
     self.windows[infoIndex].buttons = list_init();
+    list_append(self.windows[infoIndex].buttons, (unitype) (void *) buttonInit("Refresh", &self.infoRefresh, WINDOW_INFO, -22, -24, 8, BUTTON_SHAPE_RECTANGLE), 'p');
 }
 
 /* UI elements */
@@ -815,11 +847,11 @@ void switchTick(int window) {
     for (int i = 0; i < self.windows[window].switches -> length; i++) {
         switch_t *switchp = (switch_t *) (self.windows[window].switches -> data[i].p);
         if ((switchp -> window & windowID) != 0) {
-            textGLWriteString(switchp -> label, self.windows[window].windowCoords[2] + switchp -> position[0], self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + switchp -> position[1] + 15, switchp -> size - 1, 50);
-            turtlePenColor(self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14]);
-            turtlePenSize(switchp -> size * 1.2);
             double switchX = self.windows[window].windowCoords[2] + switchp -> position[0];
             double switchY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + switchp -> position[1];
+            textGLWriteString(switchp -> label, switchX, switchY + 15, switchp -> size - 1, 50);
+            turtlePenColor(self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14]);
+            turtlePenSize(switchp -> size * 1.2);
             turtleGoto(switchX - switchp -> size * 0.8, switchY);
             turtlePenDown();
             turtleGoto(switchX + switchp -> size * 0.8, switchY);
@@ -982,48 +1014,36 @@ void dropdownTick(int window) {
 void buttonTick(int window) {
     int windowID = pow2(window);
     for (int i = 0; i < self.windows[window].buttons -> length; i++) {
-        button_t *buttonp = (button_t *) (self.windows[window].buttons -> data[i].p);
-        if ((buttonp -> window & windowID) != 0) {
-            textGLWriteString(buttonp -> label, self.windows[window].windowCoords[2] + buttonp -> position[0], self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + buttonp -> position[1] + 15, buttonp -> size - 1, 50);
-            turtlePenColor(self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14]);
-            turtlePenSize(buttonp -> size * 1.2);
-            double buttonX = self.windows[window].windowCoords[2] + buttonp -> position[0];
-            double buttonY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + buttonp -> position[1];
-            turtleGoto(buttonX - buttonp -> size * 0.8, buttonY);
-            turtlePenDown();
-            turtleGoto(buttonX + buttonp -> size * 0.8, buttonY);
-            turtlePenUp();
-            turtlePenSize(buttonp -> size);
-            turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
-            if (*(buttonp -> variable)) {
-                // turtlePenColor(self.themeColors[self.theme + 15], self.themeColors[self.theme + 16], self.themeColors[self.theme + 17]);
-                turtleGoto(buttonX + buttonp -> size * 0.8, buttonY);
+        button_t *button = (button_t *) (self.windows[window].buttons -> data[i].p);
+        if ((button -> window & windowID) != 0) {
+            double buttonX = self.windows[window].windowCoords[2] + button -> position[0];
+            double buttonY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + button -> position[1];
+            double buttonWidth = textGLGetStringLength(button -> label, button -> size);
+            double buttonHeight = 14;
+            if (button -> status == 0) {
+                turtleRectangle(buttonX - buttonWidth / 2, buttonY - buttonHeight / 2, buttonX + buttonWidth / 2, buttonY + buttonHeight / 2, self.themeColors[self.theme + 0], self.themeColors[self.theme + 1], self.themeColors[self.theme + 2], 0);
             } else {
-                // turtlePenColor(self.themeColors[self.theme + 18], self.themeColors[self.theme + 19], self.themeColors[self.theme + 20]);
-                turtleGoto(buttonX - buttonp -> size * 0.8, buttonY);
+                turtleRectangle(buttonX - buttonWidth / 2, buttonY - buttonHeight / 2, buttonX + buttonWidth / 2, buttonY + buttonHeight / 2, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
             }
-            turtlePenDown();
-            turtlePenUp();
+            turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+            textGLWriteString(button -> label, buttonX, buttonY, button -> size - 1, 50);
             // if (self.windowRender -> data[self.windowRender -> length - 1].i == windowID) {
                 if (self.mouseDown) {
-                    if (buttonp -> status < 0) {
-                        buttonp -> status *= -1;
+                    if (button -> status < 0) {
+                        button -> status *= -1;
                     }
                 } else {
-                    if (self.mx > buttonX - buttonp -> size && self.mx < buttonX + buttonp -> size && self.my > buttonY - buttonp -> size && self.my < buttonY + buttonp -> size) {
-                        buttonp -> status = -1;
+                    if (self.mx > buttonX - buttonWidth / 2 && self.mx < buttonX + buttonWidth / 2 && self.my > buttonY - buttonHeight / 2 && self.my < buttonY + buttonHeight / 2) {
+                        button -> status = -1;
                     } else {
-                        buttonp -> status = 0;
+                        button -> status = 0;
                     }
                 }
             // }
-            if (buttonp -> status > 0) {
-                if (*(buttonp -> variable)) {
-                    *(buttonp -> variable) = 0;
-                } else {
-                    *(buttonp -> variable) = 1;
-                }
-                buttonp -> status = 0;
+            *(button -> variable) = 0;
+            if (button -> status > 0) {
+                *(button -> variable) = 1;
+                button -> status = 0;
             }
         }
     }
@@ -1656,8 +1676,34 @@ void renderInfoData() {
     if (self.windows[windowIndex].minimize == 0) {
         /* render window background */
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+        /* refresh button */
+        if (self.infoRefresh) {
+            // printf("button clicked\n");
+            populateLoggedVariables();
+        }
         /* render data */
-        
+        double nameColumnWidth = textGLGetStringLength("Name", 8);
+        turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+        for (int i = 1; i < self.logVariables -> length; i++) {
+            if (textGLGetStringLength(self.logVariables -> data[i].s, 6) > nameColumnWidth) {
+                nameColumnWidth = textGLGetStringLength(self.logVariables -> data[i].s, 6);
+            }
+        }
+        turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 20, self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 0], self.themeColors[self.theme + 1], self.themeColors[self.theme + 2], 0);
+        textGLWriteString("Name", self.windows[windowIndex].windowCoords[0] + 10 + nameColumnWidth / 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 10, 8, 50);
+        for (int i = 1; i < self.logVariables -> length; i++) {
+            textGLWriteString(self.logVariables -> data[i].s, self.windows[windowIndex].windowCoords[0] + 10 + nameColumnWidth / 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 25 - (i - 1) * 10, 6, 50);
+        }
+        double samplesColumnWidth = textGLGetStringLength("Samples/s", 8);
+        turtleRectangle(self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 20, self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 35 + samplesColumnWidth + 5, self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 0] - 8, self.themeColors[self.theme + 1] - 8, self.themeColors[self.theme + 2] - 8, 0);
+        textGLWriteString("Samples/s", self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 30 + samplesColumnWidth / 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 10, 8, 50);
+        for (int i = 1; i < self.logVariables -> length; i++) {
+            int samplesPerSecond = self.data -> data[i].r -> data[0].d;
+            char sampleString[24];
+            sprintf(sampleString, "%d", samplesPerSecond);
+            textGLWriteString(sampleString, self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 30 + samplesColumnWidth / 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 25 - (i - 1) * 10, 6, 50);
+        }
+        self.windows[windowIndex].windowMinX = nameColumnWidth + samplesColumnWidth + 83;
     }
 }
 
