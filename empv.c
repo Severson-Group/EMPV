@@ -34,6 +34,16 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 #define TRIGGER_TIMEOUT 50
 #define PHASE_THRESHOLD 0.5
 
+void delay_ms(int delay) {
+    clock_t start;
+    clock_t end;
+    start = clock();
+    end = clock();
+    while ((double) (end - start) / CLOCKS_PER_SEC < delay / 1000) {
+        end = clock();
+    }
+}
+
 enum trigger_type {
     TRIGGER_NONE = 0,
     TRIGGER_RISING_EDGE,
@@ -422,12 +432,13 @@ void *commsThreadFunction(void *arg) {
 
 void populateLoggedVariables() {
     self.threadCloseSignal = 1;
+    delay_ms(100);
     list_clear(self.data);
     list_append(self.data, (unitype) list_init(), 'r'); // unused list
 
     list_clear(self.logVariables);
     list_clear(self.logSlots);
-    list_clear(self.logSockets);
+    self.logSockets = list_init();
     list_clear(self.logSocketIDs);
     list_append(self.logVariables, (unitype) "Unused", 's');
     list_append(self.logSlots, (unitype) -1, 'i');
@@ -463,6 +474,7 @@ void populateLoggedVariables() {
     }
     commsCommand("log info");
     self.maxSlots = 0;
+    // printf("received: %s\n", self.tcpAsciiReceiveBuffer);
     /* parse command */
     char *testString = strtok(self.tcpAsciiReceiveBuffer, "\n");
     int stringHold = 0;
@@ -493,7 +505,6 @@ void populateLoggedVariables() {
             case 2: // Sampling interval (usec): <usec>
                 double samplingInterval = 0.0; // in microseconds
                 sscanf(testString + 28, "%lf", &samplingInterval);
-                printf("%s\n", testString + 28);
                 list_append(self.data -> data[self.data -> length - 1].r, (unitype) (1 / (samplingInterval / 1000000)), 'd'); // set samples/s
                 break;
             case 1: // Num samples: <num>
@@ -522,6 +533,7 @@ void populateLoggedVariables() {
     /* populate sockets */
     int populatedSlots = self.logVariables -> length - 1; // subtract unused slot
     if (self.commsEnabled == 1) {
+        /* open a new logging socket for each logged variable */
         for (int i = 0; i < populatedSlots; i++) {
             SOCKET *sptr = win32tcpCreateSocket();
             if (sptr != NULL) {
@@ -1726,7 +1738,10 @@ void renderInfoData() {
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         /* refresh button */
         if (self.infoRefresh) {
-            // printf("button clicked\n");
+            /* close all existing logging sockets */
+            for (int i = 1; i < self.logSockets -> length; i++) {
+                closesocket(*((SOCKET *) self.logSockets -> data[i].p));
+            }
             populateLoggedVariables();
         }
         /* render data */

@@ -448,7 +448,7 @@ void list_free_lite(list_t *list) { // frees the list's data but not the list it
         if (list -> type[i] == 'r') {
             list_free(list -> data[i].r);
         }
-        if (list -> type[i] == 's' || list -> type[i] == 'p') {
+        if ((list -> type[i] == 's' || list -> type[i] == 'p') && list -> data[i].p != NULL) {
             free(list -> data[i].s);
         }
     }
