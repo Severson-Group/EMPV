@@ -135,6 +135,7 @@ typedef struct { // oscilloscope view
 typedef struct { // all the empv shared state is here
     /* comms */
     pthread_t commsThread[MAX_LOGGING_SOCKETS];
+    int threadCloseSignal;
     char commsEnabled;
     SOCKET *cmdSocket;
     int cmdSocketID;
@@ -412,11 +413,15 @@ void *commsThreadFunction(void *arg) {
                 commsGetData(index);
             }
         }
+        if (self.threadCloseSignal) {
+            return NULL;
+        }
     }
     return NULL;
 } 
 
 void populateLoggedVariables() {
+    self.threadCloseSignal = 1;
     list_clear(self.data);
     list_append(self.data, (unitype) list_init(), 'r'); // unused list
 
@@ -513,7 +518,43 @@ void populateLoggedVariables() {
         }
     }
     printf("Max Logging Slots: %d\n", self.maxSlots);
-    list_print(self.data);
+    self.threadCloseSignal = 0;
+    /* populate sockets */
+    int populatedSlots = self.logVariables -> length - 1; // subtract unused slot
+    if (self.commsEnabled == 1) {
+        for (int i = 0; i < populatedSlots; i++) {
+            SOCKET *sptr = win32tcpCreateSocket();
+            if (sptr != NULL) {
+                unsigned char receiveBuffer[10] = {0};
+                win32tcpReceive(sptr, receiveBuffer, 1);
+                unsigned char amdc_log_id[2] = {56, 78};
+                win32tcpSend(sptr, amdc_log_id, 2);
+                printf("Successfully created AMDC log socket with id %d\n", *receiveBuffer);
+                int sID = *receiveBuffer;
+                list_append(self.logSockets, (unitype) (void *) sptr, 'p');
+                list_append(self.logSocketIDs, (unitype) sID, 'i');
+            }
+        }
+        int threadArg[populatedSlots];
+        for (int i = 0; i < populatedSlots; i++) {
+            threadArg[i] = i + 1;
+            pthread_create(&self.commsThread[i], NULL, commsThreadFunction, &threadArg[i]);
+        }
+        /* clear all streams */
+        for (int i = 0; i < self.maxSlots; i++) {
+            char command[128];
+            sprintf(command, "log stream stop %d %d", i, self.logSocketIDs -> data[i].i);
+            commsCommand(command);
+        }
+        /* start stream for logged variables */
+        for (int i = 0; i < populatedSlots; i++) {
+            if (self.logSlots -> data[i + 1].i != -1) {
+                char command[128];
+                sprintf(command, "log stream start %d %d", self.logSlots -> data[i + 1].i, self.logSocketIDs -> data[i + 1].i);
+                commsCommand(command);
+            }
+        }
+    }
 }
 
 void createNewOsc() {
@@ -524,7 +565,7 @@ void createNewOsc() {
     self.osc[self.newOsc].trigger.type = TRIGGER_NONE;
     self.osc[self.newOsc].trigger.index = 0;
     self.osc[self.newOsc].trigger.lastIndex = list_init();
-    if (self.logVariables -> length > 0) {
+    if (self.logVariables -> length > 1) {
         self.osc[self.newOsc].dataIndex[0] = 1; // Demo 1
     } else {
         self.osc[self.newOsc].dataIndex[0] = 0; // unused
@@ -595,6 +636,7 @@ void createNewOsc() {
 /* initialise global state */
 void init() { // initialises the empv variabes (shared state)
 /* comms */
+    self.threadCloseSignal = 0;
     self.maxSlots = 0;
     for (int i = 0; i < TCP_RECEIVE_BUFFER_LENGTH; i++) {
         self.tcpAsciiReceiveBuffer[i] = 0;
@@ -1399,8 +1441,9 @@ void renderOscData(int oscIndex) {
         /* render data */
         turtlePenSize(1);
         double xquantum = (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0]) / (self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound - 1);
+        // printf("bounds: %d %d\n", self.osc[oscIndex].leftBound, self.osc[oscIndex].rightBound);
         for (int j = 0; j < 4; j++) {
-            if (self.data -> data[self.osc[oscIndex].dataIndex[j]].r -> length >= self.osc[oscIndex].rightBound) {
+            // if (self.data -> data[self.osc[oscIndex].dataIndex[j]].r -> length >= self.osc[oscIndex].rightBound) {
                 if (self.osc[oscIndex].dataIndex[j] <= 0) {
                     continue;
                 }
@@ -1410,7 +1453,7 @@ void renderOscData(int oscIndex) {
                     turtlePenDown();
                 }
                 turtlePenUp();
-            }
+            // }
         }
         /* render mouse */
         // if (self.windowRender -> data[self.windowRender -> length - 1].i >= WINDOW_OSC) {
@@ -1708,7 +1751,16 @@ void renderInfoData() {
             sprintf(sampleString, "%d", samplesPerSecond);
             textGLWriteString(sampleString, self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 30 + samplesColumnWidth / 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 25 - (i - 1) * 10, 6, 50);
         }
-        self.windows[windowIndex].windowMinX = nameColumnWidth + samplesColumnWidth + 83;
+        double totalColumnWidth = textGLGetStringLength("Total Samples", 8);
+        turtleRectangle(self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 40 + samplesColumnWidth, self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 60 + samplesColumnWidth + totalColumnWidth, self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 0] - 16, self.themeColors[self.theme + 1] - 16, self.themeColors[self.theme + 2] - 16, 0);
+        textGLWriteString("Total Samples", self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 50 + samplesColumnWidth + totalColumnWidth / 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 10, 8, 50);
+        for (int i = 1; i < self.logVariables -> length; i++) {
+            int totalSamples = self.data -> data[i].r -> length - 1;
+            char sampleString[24];
+            sprintf(sampleString, "%d", totalSamples);
+            textGLWriteString(sampleString, self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 50 + samplesColumnWidth + totalColumnWidth / 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 25 - (i - 1) * 10, 6, 50);
+        }
+        self.windows[windowIndex].windowMinX = nameColumnWidth + samplesColumnWidth + totalColumnWidth + 83;
     }
 }
 
@@ -1917,44 +1969,9 @@ int main(int argc, char *argv[]) {
 
     init(); // initialise empv
     turtleBgColor(self.themeColors[self.theme + 0], self.themeColors[self.theme + 1], self.themeColors[self.theme + 2]);
-    /* populate sockets */
-    int populatedSlots = self.logVariables -> length - 1; // subtract demo data
-    if (self.commsEnabled == 1) {
-        for (int i = 0; i < populatedSlots; i++) {
-            SOCKET *sptr = win32tcpCreateSocket();
-            if (sptr != NULL) {
-                unsigned char receiveBuffer[10] = {0};
-                win32tcpReceive(sptr, receiveBuffer, 1);
-                unsigned char amdc_log_id[2] = {56, 78};
-                win32tcpSend(sptr, amdc_log_id, 2);
-                printf("Successfully created AMDC log socket with id %d\n", *receiveBuffer);
-                int sID = *receiveBuffer;
-                list_append(self.logSockets, (unitype) (void *) sptr, 'p');
-                list_append(self.logSocketIDs, (unitype) sID, 'i');
-            }
-        }
-        int threadArg[populatedSlots];
-        for (int i = 0; i < populatedSlots; i++) {
-            threadArg[i] = i + 1;
-            pthread_create(&self.commsThread[i], NULL, commsThreadFunction, &threadArg[i]);
-        }
-        /* clear all streams */
-        for (int i = 0; i < self.maxSlots; i++) {
-            char command[128];
-            sprintf(command, "log stream stop %d %d", i, self.logSocketIDs -> data[i].i);
-            commsCommand(command);
-        }
-        /* start stream for logged variables */
-        for (int i = 0; i < populatedSlots; i++) {
-            if (self.logSlots -> data[i + 1].i != -1) {
-                char command[128];
-                sprintf(command, "log stream start %d %d", self.logSlots -> data[i + 1].i, self.logSocketIDs -> data[i + 1].i);
-                commsCommand(command);
-            }
-        }
-    }
 
     while (turtle.close == 0) { // main loop
+        // printf("%d %d %d\n", self.data -> data[1].r -> length, self.data -> data[2].r -> length, self.data -> data[3].r -> length);
         start = clock();
         if (self.commsEnabled == 0) {
             /* populate demo data */
