@@ -22,12 +22,13 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 #define DIAL_LOG        1
 #define DIAL_EXP        2
 
-#define NUM_WINDOWS     14
+#define NUM_WINDOWS     8
 
-#define WINDOW_FREQ     1
-#define WINDOW_EDITOR   2
-#define WINDOW_ORBIT    4
-#define WINDOW_OSC      8
+#define WINDOW_INFO     1
+#define WINDOW_FREQ     2
+#define WINDOW_EDITOR   4
+#define WINDOW_ORBIT    8
+#define WINDOW_OSC      16
 
 #define TRIGGER_TIMEOUT 50
 #define PHASE_THRESHOLD 0.5
@@ -76,6 +77,21 @@ typedef struct { // dropdown
     dropdown_metadata_t metadata;
 } dropdown_t;
 
+#define BUTTON_SHAPE_RECTANGLE         0
+#define BUTTON_SHAPE_ROUNDED_RECTANGLE 1
+#define BUTTON_SHAPE_CIRCLE            2
+
+typedef struct { // button
+    char label[24];
+    int window;
+    int status;
+    int shape;
+    double size;
+    double position[2]; // xOffset, yOffset
+    double parameters[2]; // rectangle: width and height
+    int *variable;
+} button_t;
+
 typedef struct { // general window attributes
     char title[32];
     double windowCoords[4]; // minX, minY, maxX, maxY
@@ -90,6 +106,7 @@ typedef struct { // general window attributes
     list_t *dials;
     list_t *switches;
     list_t *dropdowns;
+    list_t *buttons;
     int dropdownLogicIndex;
 } window_t;
 
@@ -147,7 +164,7 @@ typedef struct { // all the empv shared state is here
         double themeColors[90];
     /* oscilloscope view */
         list_t *oscTitles; // list of oscilloscope titles
-        oscilloscope_t osc[12]; // up to 12 oscilloscopes
+        oscilloscope_t osc[4]; // up to 4 oscilloscopes
         int newOsc;
     /* frequency view */
         list_t *windowData; // segment of normal data through windowing function
@@ -167,6 +184,7 @@ typedef struct { // all the empv shared state is here
     /* editor view */
         double editorBottomBound;
         double editorWindowSize; // size of window
+    /* info view */
 
 } empv_t;
 
@@ -512,6 +530,7 @@ void createNewOsc() {
     self.windows[oscIndex].dials = list_init();
     self.windows[oscIndex].switches = list_init();
     self.windows[oscIndex].dropdowns = list_init();
+    self.windows[oscIndex].buttons = list_init();
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("X Scale", &self.osc[self.newOsc].windowSize, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -25 - self.windows[oscIndex].windowTop, 8, 4, 1024), 'p');
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[self.newOsc].dummyTopBound, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -65 - self.windows[oscIndex].windowTop, 8, 1, 10000), 'p');
     list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Pause", &self.osc[self.newOsc].stop, WINDOW_OSC * pow2(self.newOsc), -25, -100 - self.windows[oscIndex].windowTop, 8), 'p');
@@ -602,6 +621,7 @@ void init() { // initialises the empv variabes (shared state)
     list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
     list_append(self.windowRender, (unitype) WINDOW_EDITOR, 'i');
     list_append(self.windowRender, (unitype) WINDOW_ORBIT, 'i');
+    list_append(self.windowRender, (unitype) WINDOW_INFO, 'i');
     self.anchorX = 0;
     self.anchorY = 0;
     self.dialAnchorX = 0;
@@ -637,6 +657,7 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[freqIndex].dials = list_init();
     self.windows[freqIndex].switches = list_init();
     self.windows[freqIndex].dropdowns = list_init();
+    self.windows[freqIndex].buttons = list_init();
     list_append(self.windows[freqIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.topFreq, WINDOW_FREQ, DIAL_EXP, -25, -25 - self.windows[freqIndex].windowTop, 8, 1, 500), 'p');
     list_t *freqChannels = list_init();
     list_append(freqChannels, (unitype) "Channel 1", 's');
@@ -669,6 +690,7 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[orbitIndex].dials = list_init();
     self.windows[orbitIndex].switches = list_init();
     self.windows[orbitIndex].dropdowns = list_init();
+    self.windows[orbitIndex].buttons = list_init();
     list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("Y source", self.logVariables, &self.orbitDataIndex[0], WINDOW_ORBIT, -60, -60 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
     list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("X source", self.logVariables, &self.orbitDataIndex[1], WINDOW_ORBIT, -60, -25 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
     list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbitXScale, WINDOW_ORBIT, DIAL_EXP, -20, -25 - self.windows[orbitIndex].windowTop, 8, 1, 500), 'p');
@@ -685,13 +707,33 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[editorIndex].windowSide = 0;
     self.windows[editorIndex].windowMinX = 60 + self.windows[editorIndex].windowSide;
     self.windows[editorIndex].windowMinY = 120 + self.windows[editorIndex].windowTop;
-    self.windows[editorIndex].minimize = 0;
+    self.windows[editorIndex].minimize = 1;
     self.windows[editorIndex].move = 0;
     self.windows[editorIndex].click = 0;
     self.windows[editorIndex].resize = 0;
     self.windows[editorIndex].dials = list_init();
     self.windows[editorIndex].switches = list_init();
     self.windows[editorIndex].dropdowns = list_init();
+    self.windows[editorIndex].buttons = list_init();
+    /* info */
+    int infoIndex = ilog2(WINDOW_INFO);
+    strcpy(self.windows[infoIndex].title, "Info");
+    self.windows[infoIndex].windowCoords[0] = 2;
+    self.windows[infoIndex].windowCoords[1] = -161;
+    self.windows[infoIndex].windowCoords[2] = 317;
+    self.windows[infoIndex].windowCoords[3] = -5;
+    self.windows[infoIndex].windowTop = 15;
+    self.windows[infoIndex].windowSide = 0;
+    self.windows[infoIndex].windowMinX = 60 + self.windows[infoIndex].windowSide;
+    self.windows[infoIndex].windowMinY = 120 + self.windows[infoIndex].windowTop;
+    self.windows[infoIndex].minimize = 0;
+    self.windows[infoIndex].move = 0;
+    self.windows[infoIndex].click = 0;
+    self.windows[infoIndex].resize = 0;
+    self.windows[infoIndex].dials = list_init();
+    self.windows[infoIndex].switches = list_init();
+    self.windows[infoIndex].dropdowns = list_init();
+    self.windows[infoIndex].buttons = list_init();
 }
 
 /* UI elements */
@@ -936,6 +978,56 @@ void dropdownTick(int window) {
     }
 }
 
+void buttonTick(int window) {
+    int windowID = pow2(window);
+    for (int i = 0; i < self.windows[window].buttons -> length; i++) {
+        button_t *buttonp = (button_t *) (self.windows[window].buttons -> data[i].p);
+        if ((buttonp -> window & windowID) != 0) {
+            textGLWriteString(buttonp -> label, self.windows[window].windowCoords[2] + buttonp -> position[0], self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + buttonp -> position[1] + 15, buttonp -> size - 1, 50);
+            turtlePenColor(self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14]);
+            turtlePenSize(buttonp -> size * 1.2);
+            double buttonX = self.windows[window].windowCoords[2] + buttonp -> position[0];
+            double buttonY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + buttonp -> position[1];
+            turtleGoto(buttonX - buttonp -> size * 0.8, buttonY);
+            turtlePenDown();
+            turtleGoto(buttonX + buttonp -> size * 0.8, buttonY);
+            turtlePenUp();
+            turtlePenSize(buttonp -> size);
+            turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+            if (*(buttonp -> variable)) {
+                // turtlePenColor(self.themeColors[self.theme + 15], self.themeColors[self.theme + 16], self.themeColors[self.theme + 17]);
+                turtleGoto(buttonX + buttonp -> size * 0.8, buttonY);
+            } else {
+                // turtlePenColor(self.themeColors[self.theme + 18], self.themeColors[self.theme + 19], self.themeColors[self.theme + 20]);
+                turtleGoto(buttonX - buttonp -> size * 0.8, buttonY);
+            }
+            turtlePenDown();
+            turtlePenUp();
+            // if (self.windowRender -> data[self.windowRender -> length - 1].i == windowID) {
+                if (self.mouseDown) {
+                    if (buttonp -> status < 0) {
+                        buttonp -> status *= -1;
+                    }
+                } else {
+                    if (self.mx > buttonX - buttonp -> size && self.mx < buttonX + buttonp -> size && self.my > buttonY - buttonp -> size && self.my < buttonY + buttonp -> size) {
+                        buttonp -> status = -1;
+                    } else {
+                        buttonp -> status = 0;
+                    }
+                }
+            // }
+            if (buttonp -> status > 0) {
+                if (*(buttonp -> variable)) {
+                    *(buttonp -> variable) = 0;
+                } else {
+                    *(buttonp -> variable) = 1;
+                }
+                buttonp -> status = 0;
+            }
+        }
+    }
+}
+
 void renderWindow(int window) {
     window_t *win = &self.windows[window];
     if (win -> minimize == 0) {
@@ -958,6 +1050,7 @@ void renderWindow(int window) {
         dialTick(window);
         switchTick(window);
         dropdownTick(window);
+        buttonTick(window);
     }
     /* window move and resize logic */
     /* move */
@@ -1557,6 +1650,16 @@ void renderOrbitData() {
     }
 }
 
+void renderInfoData() {
+    int windowIndex = ilog2(WINDOW_INFO);
+    if (self.windows[windowIndex].minimize == 0) {
+        /* render window background */
+        turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
+        /* render data */
+        
+    }
+}
+
 void renderOrder() {
     for (int i = 0; i < self.windowRender -> length; i++) {
         if (self.windowRender -> data[i].i >= WINDOW_OSC) {
@@ -1567,6 +1670,8 @@ void renderOrder() {
             renderEditorData();
         } else if (self.windowRender -> data[i].i == WINDOW_ORBIT) {
             renderOrbitData();
+        } else if (self.windowRender -> data[i].i == WINDOW_INFO) {
+            renderInfoData();
         }
         renderWindow(ilog2(self.windowRender -> data[i].i));
     }
