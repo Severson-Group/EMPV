@@ -479,13 +479,17 @@ void populateLoggedVariables() {
                 list_append(self.logSlots, (unitype) slotNum, 'i');
                 list_append(self.logVariables, (unitype) (testString + 8), 's');
                 list_append(self.data, (unitype) list_init(), 'r');
-                list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120, 'd'); // set samples/s
+                // list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120.0, 'd'); // set samples/s
                 break;
             case 4: // Type: <type>
                 break;
             case 3: // Memory address: <address>
                 break;
             case 2: // Sampling interval (usec): <usec>
+                double samplingInterval = 0.0; // in microseconds
+                sscanf(testString + 28, "%lf", &samplingInterval);
+                printf("%s\n", testString + 28);
+                list_append(self.data -> data[self.data -> length - 1].r, (unitype) (1 / (samplingInterval / 1000000)), 'd'); // set samples/s
                 break;
             case 1: // Num samples: <num>
                 break;
@@ -509,6 +513,7 @@ void populateLoggedVariables() {
         }
     }
     printf("Max Logging Slots: %d\n", self.maxSlots);
+    list_print(self.data);
 }
 
 void createNewOsc() {
@@ -752,7 +757,7 @@ void init() { // initialises the empv variabes (shared state)
     strcpy(self.windows[infoIndex].title, "Info");
     self.windows[infoIndex].windowCoords[0] = 2;
     self.windows[infoIndex].windowCoords[1] = -161;
-    self.windows[infoIndex].windowCoords[2] = 162;
+    self.windows[infoIndex].windowCoords[2] = 317;
     self.windows[infoIndex].windowCoords[3] = -5;
     self.windows[infoIndex].windowTop = 15;
     self.windows[infoIndex].windowSide = 0;
@@ -1888,7 +1893,7 @@ int main(int argc, char *argv[]) {
     win32FileDialogAddExtension("txt"); // add txt to extension restrictions
     win32FileDialogAddExtension("csv"); // add csv to extension restrictions
     /* initialise win32tcp */
-    if (argc > 1) {
+    if (argc == 1) {
         if (win32tcpInit("192.168.1.10", "7")) {
             printf("Failed to connect to %s, ensure AMDC is plugged in and listening on port %s\n", win32Socket.address, win32Socket.port);
         }
