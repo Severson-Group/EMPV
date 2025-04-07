@@ -438,6 +438,7 @@ void populateLoggedVariables() {
 
     list_clear(self.logVariables);
     list_clear(self.logSlots);
+    free(self.logSockets);
     self.logSockets = list_init();
     list_clear(self.logSocketIDs);
     list_append(self.logVariables, (unitype) "Unused", 's');
@@ -553,11 +554,12 @@ void populateLoggedVariables() {
             pthread_create(&self.commsThread[i], NULL, commsThreadFunction, &threadArg[i]);
         }
         /* clear all streams */
-        for (int i = 0; i < self.maxSlots; i++) {
-            char command[128];
-            sprintf(command, "log stream stop %d %d", i, self.logSocketIDs -> data[i].i);
-            commsCommand(command);
-        }
+        // for (int i = 0; i < self.maxSlots; i++) {
+        //     char command[128];
+        //     sprintf(command, "log stream stop %d %d", i, self.logSocketIDs -> data[i].i);
+        //     printf("%s\n", command);
+        //     commsCommand(command);
+        // }
         /* start stream for logged variables */
         for (int i = 0; i < populatedSlots; i++) {
             if (self.logSlots -> data[i + 1].i != -1) {
@@ -1742,6 +1744,15 @@ void renderInfoData() {
             for (int i = 1; i < self.logSockets -> length; i++) {
                 closesocket(*((SOCKET *) self.logSockets -> data[i].p));
             }
+            /* IMPORTANT - must close and reopen command socket (otherwise log info command is out of date) */
+            closesocket(*self.cmdSocket);
+            self.cmdSocket = win32tcpCreateSocket();
+            unsigned char receiveBuffer[10] = {0};
+            win32tcpReceive(self.cmdSocket, receiveBuffer, 1);
+            unsigned char amdc_cmd_id[2] = {12, 34};
+            win32tcpSend(self.cmdSocket, amdc_cmd_id, 2);
+            printf("Successfully created AMDC cmd socket with id %d\n", *receiveBuffer);
+            self.cmdSocketID = *receiveBuffer;
             populateLoggedVariables();
         }
         /* render data */
@@ -1987,6 +1998,7 @@ int main(int argc, char *argv[]) {
 
     while (turtle.close == 0) { // main loop
         // printf("%d %d %d\n", self.data -> data[1].r -> length, self.data -> data[2].r -> length, self.data -> data[3].r -> length);
+        // list_print(self.data);
         start = clock();
         if (self.commsEnabled == 0) {
             /* populate demo data */
