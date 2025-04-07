@@ -2,6 +2,7 @@
 Features:
 - Oscilloscope-like interface
 - Frequency graph
+- Orbital plot
 - Editor
 
 Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes/advanced-digital-triggers
