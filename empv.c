@@ -1754,6 +1754,15 @@ void renderInfoData() {
             printf("Successfully created AMDC cmd socket with id %d\n", *receiveBuffer);
             self.cmdSocketID = *receiveBuffer;
             populateLoggedVariables();
+            /* update broken dropdowns */
+            for (int i = 0; i < self.windowRender -> length; i++) {
+                if (self.windowRender -> data[i].i >= WINDOW_OSC) {
+                    printf("updating dropdowns for window %d\n", );
+                    for (int j = 0; j < self.windows[ilog2(self.windowRender -> data[i].i) - ilog2(WINDOW_OSC)].dropdowns -> length; j++) {
+                        dropdownCalculateMax((dropdown_t *) self.windows[ilog2(self.windowRender -> data[i].i) - ilog2(WINDOW_OSC)].dropdowns -> data[j].p);
+                    }
+                }
+            }
         }
         /* render data */
         double nameColumnWidth = textGLGetStringLength("Name", 8);
