@@ -1757,7 +1757,7 @@ void renderInfoData() {
             /* update broken dropdowns */
             for (int i = 0; i < self.windowRender -> length; i++) {
                 if (self.windowRender -> data[i].i >= WINDOW_OSC) {
-                    printf("updating dropdowns for window %d\n", );
+                    printf("updating dropdowns for window %d\n", windowIndex);
                     for (int j = 0; j < self.windows[ilog2(self.windowRender -> data[i].i) - ilog2(WINDOW_OSC)].dropdowns -> length; j++) {
                         dropdownCalculateMax((dropdown_t *) self.windows[ilog2(self.windowRender -> data[i].i) - ilog2(WINDOW_OSC)].dropdowns -> data[j].p);
                     }
