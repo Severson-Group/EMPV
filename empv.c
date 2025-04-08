@@ -962,6 +962,7 @@ void dropdownTick(int window) {
     for (int i = 0; i < self.windows[window].dropdowns -> length; i++) {
         dropdown_t *dropdown = (dropdown_t *) (self.windows[window].dropdowns -> data[i].p);
         if ((dropdown -> window & windowID) != 0) {
+            /* render dropdown default position */
             double dropdownX = self.windows[window].windowCoords[2] + dropdown -> position[0];
             double dropdownY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1];
             if (strlen(dropdown -> label) > 0) {
@@ -972,6 +973,7 @@ void dropdownTick(int window) {
                 self.windows[window].windowSide = xfactor - dropdown -> position[0] + 10;
             }
             double itemHeight = (dropdown -> size * 1.5);
+            /* extra: oscillator select channel */
             if (dropdown -> metadata.inUse) {
                 int oscIndex = window - ilog2(WINDOW_OSC);
                 if (self.osc[oscIndex].selectedChannel == dropdown -> metadata.selectIndex) {
@@ -1757,9 +1759,17 @@ void renderInfoData() {
             /* update broken dropdowns */
             for (int i = 0; i < self.windowRender -> length; i++) {
                 if (self.windowRender -> data[i].i >= WINDOW_OSC) {
-                    printf("updating dropdowns for window %d\n", windowIndex);
-                    for (int j = 0; j < self.windows[ilog2(self.windowRender -> data[i].i) - ilog2(WINDOW_OSC)].dropdowns -> length; j++) {
-                        dropdownCalculateMax((dropdown_t *) self.windows[ilog2(self.windowRender -> data[i].i) - ilog2(WINDOW_OSC)].dropdowns -> data[j].p);
+                    int windowIndex = ilog2(self.windowRender -> data[i].i);
+                    // printf("updating %d dropdowns for window_osc %d\n", self.windows[windowIndex].dropdowns -> length, windowIndex);
+                    for (int j = 0; j < self.windows[windowIndex].dropdowns -> length; j++) {
+                        dropdownCalculateMax((dropdown_t *) self.windows[windowIndex].dropdowns -> data[j].p);
+                    }
+                }
+                if (self.windowRender -> data[i].i == WINDOW_ORBIT) {
+                    int windowIndex = ilog2(self.windowRender -> data[i].i);
+                    // printf("updating %d dropdowns for window_orbit %d\n", self.windows[windowIndex].dropdowns -> length, windowIndex);
+                    for (int j = 0; j < self.windows[windowIndex].dropdowns -> length; j++) {
+                        dropdownCalculateMax((dropdown_t *) self.windows[windowIndex].dropdowns -> data[j].p);
                     }
                 }
             }
