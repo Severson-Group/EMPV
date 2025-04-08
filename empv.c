@@ -31,8 +31,9 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 #define WINDOW_ORBIT    8
 #define WINDOW_OSC      16
 
-#define TRIGGER_TIMEOUT 50
-#define PHASE_THRESHOLD 0.5
+#define TRIGGER_TIMEOUT   150
+#define PHASE_THRESHOLD   0.5
+#define ORBIT_DIST_THRESH 2500
 
 void delay_ms(int delay) {
     clock_t start;
@@ -1473,10 +1474,10 @@ void renderOscData(int oscIndex) {
         }
         /* render mouse */
         // if (self.windowRender -> data[self.windowRender -> length - 1].i >= WINDOW_OSC) {
-            if (self.mx > self.windows[windowIndex].windowCoords[0] + 15 && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) {
+            if (self.mx > self.windows[windowIndex].windowCoords[0] + 15 && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) { // unintentional forgot "self.my <" but i prefer it this way
                 int sample = round((self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum);
                 if (self.osc[oscIndex].leftBound + sample >= self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length) {
-                    return;
+                    goto OSC_SIDE_AXIS; // skip this section
                 }
                 double sampleX = self.windows[windowIndex].windowCoords[0] + sample * xquantum;
                 double sampleY = self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[self.osc[oscIndex].leftBound + sample].d - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel])) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
@@ -1516,6 +1517,7 @@ void renderOscData(int oscIndex) {
             }
         // }
         /* render side axis */
+        OSC_SIDE_AXIS:
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[0] + 10, self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
         turtlePenColor(0, 0, 0);
         turtlePenSize(1);
@@ -1726,12 +1728,76 @@ void renderOrbitData() {
                 orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + self.data -> data[self.orbitDataIndex[0]].r -> data[xLength - i - 1].d / self.orbitXScale * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
             }
             if (yLength >= i) {
-                orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + self.data -> data[self.orbitDataIndex[1]].r -> data[yLength - i - 1].d / self.orbitYScale * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);;
+                orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + self.data -> data[self.orbitDataIndex[1]].r -> data[yLength - i - 1].d / self.orbitYScale * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
             }
             turtleGoto(orbitX, orbitY);
             turtlePenDown();
         }
         turtlePenUp();
+        /* render mouse */
+        if (self.mx > self.windows[windowIndex].windowCoords[0] + 15 && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] && self.my < self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) {
+            /* find closest point on orbit plot */
+            int xLength = self.data -> data[self.orbitDataIndex[0]].r -> length;
+            int yLength = self.data -> data[self.orbitDataIndex[1]].r -> length;
+            int closestIndex = -1;
+            double distClosest = 10000.0;
+            for (int i = 0; i < self.orbitSamples; i++) {
+                if (xLength >= i && yLength >= i) {
+                    double xDist = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + self.data -> data[self.orbitDataIndex[0]].r -> data[xLength - i - 1].d / self.orbitXScale * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]) - self.mx;
+                    double yDist = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + self.data -> data[self.orbitDataIndex[1]].r -> data[yLength - i - 1].d / self.orbitYScale * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]) - self.my;
+                    double distSquared = xDist * xDist + yDist * yDist;
+                    if (distSquared < distClosest) {
+                        distClosest = distSquared;
+                        closestIndex = i;
+                    }
+                } else {
+                    break;
+                }
+            }
+            if (closestIndex != -1 && distClosest < ORBIT_DIST_THRESH) {
+                double orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2;
+                double orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2;
+                if (xLength >= closestIndex) {
+                    orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + self.data -> data[self.orbitDataIndex[0]].r -> data[xLength - closestIndex - 1].d / self.orbitXScale * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
+                }
+                if (yLength >= closestIndex) {
+                    orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + self.data -> data[self.orbitDataIndex[1]].r -> data[yLength - closestIndex - 1].d / self.orbitYScale * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+                }
+                turtleRectangle(orbitX - 1, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop, orbitX + 1, self.windows[windowIndex].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+                turtleRectangle(self.windows[windowIndex].windowCoords[0], orbitY - 1, self.windows[windowIndex].windowCoords[2], orbitY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+                turtleGoto(orbitX, orbitY);
+                turtlePenColor(215, 215, 215);
+                turtlePenSize(4);
+                turtlePenDown();
+                turtlePenUp();
+                char sampleValue[24];
+                /* render side box */
+                sprintf(sampleValue, "%.02lf", self.data -> data[self.orbitDataIndex[1]].r -> data[yLength - closestIndex - 1].d);
+                double boxLength = textGLGetStringLength(sampleValue, 8);
+                double boxX = self.windows[windowIndex].windowCoords[0] + 12;
+                if (orbitX - boxX < 40) {
+                    boxX = self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - boxLength - 5;
+                }
+                double boxY = orbitY + 10;
+                turtleRectangle(boxX, boxY - 5, boxX + 4 + boxLength, boxY + 5, 215, 215, 215, 0);
+                turtlePenColor(0, 0, 0);
+                textGLWriteString(sampleValue, boxX + 2, boxY - 1, 8, 0);
+                /* render top box */
+                sprintf(sampleValue, "%.02lf", self.data -> data[self.orbitDataIndex[0]].r -> data[xLength - closestIndex - 1].d);
+                double boxLength2 = textGLGetStringLength(sampleValue, 8);
+                double boxY2 = orbitY + 10;
+                double boxX2 = orbitX - boxLength2 / 2;
+                if (boxX2 - 15 < self.windows[windowIndex].windowCoords[0]) {
+                    boxX2 = self.windows[windowIndex].windowCoords[0] + 15;
+                }
+                if (boxX2 + boxLength2 + self.windows[windowIndex].windowSide + 5 > self.windows[windowIndex].windowCoords[2]) {
+                    boxX2 = self.windows[windowIndex].windowCoords[2] - boxLength2 - self.windows[windowIndex].windowSide - 5;
+                }
+                turtleRectangle(boxX2 - 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 16, boxX2 + boxLength2 + 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 5, 215, 215, 215, 0);
+                turtlePenColor(0, 0, 0);
+                textGLWriteString(sampleValue, boxX2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 11, 8, 0);
+            }
+        }
     }
 }
 
