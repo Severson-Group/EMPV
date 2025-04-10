@@ -1739,6 +1739,11 @@ void renderEditorData() {
 }
 
 void renderOrbitData() {
+    /*
+    TODO
+    make pause button work
+    time sync
+    */
     int windowIndex = ilog2(WINDOW_ORBIT);
     if (self.windows[windowIndex].minimize == 0) {
         /* render window background */
