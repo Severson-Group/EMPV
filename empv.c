@@ -1400,6 +1400,7 @@ void renderOscData(int oscIndex) {
     TODO - fix window size when selecting unused channel
     fix trigger when switching from unused to a data source
     left and right bounds are local
+    fix dial bleed (maybe make dial in seconds, capped to two decimals)
     */
     printf("%d %d\n", self.osc[oscIndex].leftBound, self.osc[oscIndex].rightBound);
     printf("%d %d %d %d\n", self.osc[oscIndex].windowSizeSamples[0], self.osc[oscIndex].windowSizeSamples[1], self.osc[oscIndex].windowSizeSamples[2], self.osc[oscIndex].windowSizeSamples[3]);
