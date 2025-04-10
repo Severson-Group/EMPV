@@ -151,7 +151,8 @@ typedef struct { // oscilloscope view
     double bottomBound[4]; // bottom bound (y value) - local per channel
     double topBound[4]; // top bound (y value) - local per channel
     double dummyTopBound; // dummy top bound for manipulation via dial
-    double windowSize; // size of window (in seconds) - global per oscilloscope
+    double windowSizeMicroseconds; // size of window (in microseconds) - global per oscilloscope
+    int windowSizeSamples[4]; // size of window (in samples) - local per channel
     int stop; // pause and unpause - global per oscilloscope
 } oscilloscope_t;
 
@@ -344,7 +345,7 @@ void fft_list_wrapper(list_t *samples, list_t *frequencyOutput, list_t *phaseOut
     kiss_fft_free(cfg);
     /* parse */
     for (int i = 0; i < dimension; i++) {
-        double fftSample = sqrt(complexSamples[i].r * complexSamples[i].r + complexSamples[i].i * complexSamples[i].i) / self.osc[0].windowSize; // divide by closest rounded down power of 2 instead of window size
+        double fftSample = sqrt(complexSamples[i].r * complexSamples[i].r + complexSamples[i].i * complexSamples[i].i) / self.osc[self.freqOscIndex].windowSizeSamples[self.freqOscChannel]; // divide by closest rounded down power of 2 instead of window size
         list_append(frequencyOutput, (unitype) fftSample, 'd');
         double fftPhase = 0.0;
         /* https://www.gaussianwaves.com/2015/11/interpreting-fft-results-obtaining-magnitude-and-phase-information/ */
@@ -450,6 +451,7 @@ void populateLoggedVariables() {
     delay_ms(100);
     list_clear(self.data);
     list_append(self.data, (unitype) list_init(), 'r'); // unused list
+    list_append(self.data -> data[0].r, (unitype) 120.0, 'r'); // dummy 120 samples/s
 
     list_clear(self.logVariables);
     list_clear(self.logSlots);
@@ -615,7 +617,7 @@ void createNewOsc() {
     self.osc[self.newOsc].topBound[2] = 100;
     self.osc[self.newOsc].topBound[3] = 100;
     self.osc[self.newOsc].dummyTopBound = 100;
-    self.osc[self.newOsc].windowSize = 200;
+    self.osc[self.newOsc].windowSizeMicroseconds = 500000;
     self.osc[self.newOsc].stop = 0;
     int oscIndex = ilog2(WINDOW_OSC) + self.newOsc;
     sprintf(self.windows[oscIndex].title, "Oscilloscope %d", self.newOsc + 1);
@@ -636,7 +638,7 @@ void createNewOsc() {
     self.windows[oscIndex].switches = list_init();
     self.windows[oscIndex].dropdowns = list_init();
     self.windows[oscIndex].buttons = list_init();
-    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit(u8"Win (µs)", &self.osc[self.newOsc].windowSize, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -25 - self.windows[oscIndex].windowTop, 8, 1, 1000000), 'p');
+    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit(u8"Win (µs)", &self.osc[self.newOsc].windowSizeMicroseconds, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -25 - self.windows[oscIndex].windowTop, 8, 1, 10000000), 'p');
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[self.newOsc].dummyTopBound, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -65 - self.windows[oscIndex].windowTop, 8, 1, 10000), 'p');
     list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Pause", &self.osc[self.newOsc].stop, WINDOW_OSC * pow2(self.newOsc), -25, -100 - self.windows[oscIndex].windowTop, 8), 'p');
     // list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Trigger", &self.osc[self.newOsc].trigger.type, WINDOW_OSC * pow2(self.newOsc), -75, -100 - self.windows[oscIndex].windowTop, 8), 'p');
@@ -721,7 +723,6 @@ void init() { // initialises the empv variabes (shared state)
     list_append(self.logSockets, (unitype) NULL, 'p');
     list_append(self.logSocketIDs, (unitype) -1, 'i');
     self.data = list_init();
-    list_append(self.data, (unitype) list_init(), 'r'); // unused list
     populateLoggedVariables(); // gather logged variables
     self.windowRender = list_init();
     list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
@@ -898,11 +899,11 @@ void dialTick(int window) {
                 if (self.my < self.dialAnchorY) {
                     dialp -> status[1] = self.mx - dialX;
                 }
-                if ((dialAngle < 0.000001 || dialAngle > 180) && self.my > self.dialAnchorY && dialp -> status[1] >= 0) {
-                    dialAngle = 0.000001;
+                if ((dialAngle < 0.000000001 || dialAngle > 180) && self.my > self.dialAnchorY && dialp -> status[1] >= 0) {
+                    dialAngle = 0.000000001;
                 }
-                if ((dialAngle > 359.99999 || dialAngle < 180) && self.my > self.dialAnchorY && dialp -> status[1] < 0) {
-                    dialAngle = 359.99999;
+                if ((dialAngle > 359.99999999 || dialAngle < 180) && self.my > self.dialAnchorY && dialp -> status[1] < 0) {
+                    dialAngle = 359.99999999;
                 }
                 if (dialp -> type == DIAL_LOG) {
                     *(dialp -> variable) = round(dialp -> range[0] + (dialp -> range[1] - dialp -> range[0]) * (log(dialAngle) / log(360)));
@@ -1051,14 +1052,14 @@ void dropdownTick(int window) {
                                 dropdown -> index = selected;
                             }
                             *dropdown -> variable = dropdown -> index;
-                            self.osc[window - 2].rightBound = self.data -> data[*dropdown -> variable].r -> length - 1;
-                            if (self.osc[window - 2].rightBound < 0) {
-                                self.osc[window - 2].rightBound = 1;
-                            }
-                            self.osc[window - 2].leftBound = self.data -> data[*dropdown -> variable].r -> length - self.osc[window - 2].windowSize - 1;
-                            if (self.osc[window - 2].leftBound < 0) {
-                                self.osc[window - 2].leftBound = 1;
-                            }
+                            // self.osc[window - 2].rightBound = self.data -> data[*dropdown -> variable].r -> length - 1;
+                            // if (self.osc[window - 2].rightBound < 0) {
+                            //     self.osc[window - 2].rightBound = 1;
+                            // }
+                            // self.osc[window - 2].leftBound = self.data -> data[*dropdown -> variable].r -> length - self.osc[window - 2].windowSizeSamples[0] - 1;
+                            // if (self.osc[window - 2].leftBound < 0) {
+                            //     self.osc[window - 2].leftBound = 1;
+                            // }
                         }
                         dropdown -> status = -2;
                     }
@@ -1383,19 +1384,29 @@ void setBoundsNoTrigger(int oscIndex, int stopped) {
             }
         }
     }
-    if (self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound < self.osc[oscIndex].windowSize) {
-        self.osc[oscIndex].leftBound = self.osc[oscIndex].rightBound - self.osc[oscIndex].windowSize;
+    if (self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound < self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel]) {
+        self.osc[oscIndex].leftBound = self.osc[oscIndex].rightBound - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
         if (self.osc[oscIndex].leftBound < 0) {
             self.osc[oscIndex].leftBound = 1;
         }
     }
-    if (self.osc[oscIndex].rightBound > self.osc[oscIndex].leftBound + self.osc[oscIndex].windowSize) {
-        self.osc[oscIndex].leftBound = self.osc[oscIndex].rightBound - self.osc[oscIndex].windowSize;
+    if (self.osc[oscIndex].rightBound > self.osc[oscIndex].leftBound + self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel]) {
+        self.osc[oscIndex].leftBound = self.osc[oscIndex].rightBound - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
     }
 }
 
 void renderOscData(int oscIndex) {
+    /*
+    TODO - fix window size when selecting unused channel
+    fix trigger when switching from unused to a data source
+    left and right bounds are local
+    */
+    printf("%d %d\n", self.osc[oscIndex].leftBound, self.osc[oscIndex].rightBound);
+    printf("%d %d %d %d\n", self.osc[oscIndex].windowSizeSamples[0], self.osc[oscIndex].windowSizeSamples[1], self.osc[oscIndex].windowSizeSamples[2], self.osc[oscIndex].windowSizeSamples[3]);
     int windowIndex = ilog2(WINDOW_OSC) + oscIndex;
+    for (int i = 0; i < 4; i++) {
+        self.osc[oscIndex].windowSizeSamples[i] = round((self.osc[oscIndex].windowSizeMicroseconds / 1000000) * self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> data[0].d);
+    }
     if (self.osc[oscIndex].oldSelectedChannel != self.osc[oscIndex].selectedChannel) {
         self.osc[oscIndex].dummyTopBound = self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel];
         self.osc[oscIndex].oldSelectedChannel = self.osc[oscIndex].selectedChannel;
@@ -1412,7 +1423,7 @@ void renderOscData(int oscIndex) {
             if (self.osc[oscIndex].rightBound > self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length) {
                 self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length;
             }
-            self.osc[oscIndex].leftBound = self.osc[oscIndex].trigger.index - self.osc[oscIndex].windowSize;
+            self.osc[oscIndex].leftBound = self.osc[oscIndex].trigger.index - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
             if (self.osc[oscIndex].leftBound < 0) {
                 self.osc[oscIndex].leftBound = 1;
             }
@@ -1735,7 +1746,7 @@ void renderOrbitData() {
         /* render data */
         turtlePenSize(1);
         turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
-        for (int i = 0; i < self.orbitSamples; i++) {
+        for (int i = 1; i < self.orbitSamples; i++) {
             int xLength = self.data -> data[self.orbitDataIndex[0]].r -> length;
             int yLength = self.data -> data[self.orbitDataIndex[1]].r -> length;
             double orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2;
