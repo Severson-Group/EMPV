@@ -1071,7 +1071,7 @@ void dropdownTick(int window) {
                 int renderIndex = 1;
                 for (int i = 0; i < dropdown -> options -> length; i++) {
                     if (i != dropdown -> index) {
-                        textGLWriteString(dropdown -> options -> data[i].s, dropdownX, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1] - renderIndex * itemHeight, dropdown -> size - 1, 100);
+                        textGLWriteUnicode(dropdown -> options -> data[i].s, dropdownX, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1] - renderIndex * itemHeight, dropdown -> size - 1, 100);
                         renderIndex++;
                     }
                 }
@@ -1081,7 +1081,7 @@ void dropdownTick(int window) {
             }
             self.windows[window].dropdownLogicIndex = logicIndex;
             turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
-            textGLWriteString(dropdown -> options -> data[dropdown -> index].s, dropdownX, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1], dropdown -> size - 1, 100);
+            textGLWriteUnicode(dropdown -> options -> data[dropdown -> index].s, dropdownX, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1], dropdown -> size - 1, 100);
             if (dropdown -> status >= 1) {
                 turtleTriangle(dropdownX + 11, dropdownY + 4, dropdownX + 11, dropdownY - 4, dropdownX + 5, dropdownY, self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11], 0);
             } else {
@@ -1146,7 +1146,7 @@ void renderWindow(int window) {
         turtleRectangle(win -> windowCoords[2] - win -> windowSide, win -> windowCoords[1], win -> windowCoords[2], win -> windowCoords[3], self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 40);
         turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
         /* write title */
-        textGLWriteString(win -> title, (win -> windowCoords[0] + win -> windowCoords[2] - win -> windowSide) / 2, win -> windowCoords[3] - win -> windowTop * 0.45, win -> windowTop * 0.5, 50);
+        textGLWriteUnicode(win -> title, (win -> windowCoords[0] + win -> windowCoords[2] - win -> windowSide) / 2, win -> windowCoords[3] - win -> windowTop * 0.45, win -> windowTop * 0.5, 50);
         /* draw sidebar UI elements */
         dialTick(window);
         switchTick(window);
@@ -1923,7 +1923,7 @@ void renderOrder() {
         }
         /* write title */
         turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
-        textGLWriteString(self.windows[i].title, -320 + (50 / 2) + 50 * i, -175, 5, 50);
+        textGLWriteUnicode(self.windows[i].title, -320 + (50 / 2) + 50 * i, -175, 5, 50);
     }
 }
 
