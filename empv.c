@@ -5,7 +5,20 @@ Features:
 - Orbital plot
 - Editor
 
-Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes/advanced-digital-triggers
+Quick math
+A = 120 samples/s
+B = 240 samples/s
+
+B has 2 samples for every 1 sample from A
+
+B to A = B / A
+A to B = A / B
+
+We want to put them on a "common scale" of 1s
+
+1 / (samples/s) = seconds/sample
+
+
 */
 
 #include "include/ribbon.h"
@@ -24,7 +37,6 @@ Trigger settings: https://www.picotech.com/library/knowledge-bases/oscilloscopes
 #define DIAL_EXP        2
 
 #define NUM_WINDOWS     8
-
 #define WINDOW_INFO     1
 #define WINDOW_FREQ     2
 #define WINDOW_EDITOR   4
@@ -139,7 +151,7 @@ typedef struct { // oscilloscope view
     double bottomBound[4]; // bottom bound (y value) - local per channel
     double topBound[4]; // top bound (y value) - local per channel
     double dummyTopBound; // dummy top bound for manipulation via dial
-    double windowSize; // size of window (index in data list) - global per oscilloscope
+    double windowSize; // size of window (in seconds) - global per oscilloscope
     int stop; // pause and unpause - global per oscilloscope
 } oscilloscope_t;
 
@@ -189,10 +201,12 @@ typedef struct { // all the empv shared state is here
         double freqZoom;
         double topFreq; // top bound (y value)
     /* orbit view */
+        int orbitStop;
         double orbitXScale;
         double orbitYScale;
         double orbitSamples;
         int orbitDataIndex[2]; // index of data list for orbit source (X, Y)
+        int orbitPlotIndex[2]; // index inside data list for orbit plot (X, Y)
     /* editor view */
         double editorBottomBound;
         double editorWindowSize; // size of window
@@ -622,7 +636,7 @@ void createNewOsc() {
     self.windows[oscIndex].switches = list_init();
     self.windows[oscIndex].dropdowns = list_init();
     self.windows[oscIndex].buttons = list_init();
-    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("X Scale", &self.osc[self.newOsc].windowSize, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -25 - self.windows[oscIndex].windowTop, 8, 4, 1024), 'p');
+    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit(u8"Win (µs)", &self.osc[self.newOsc].windowSize, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -25 - self.windows[oscIndex].windowTop, 8, 1, 1000000), 'p');
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[self.newOsc].dummyTopBound, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -65 - self.windows[oscIndex].windowTop, 8, 1, 10000), 'p');
     list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Pause", &self.osc[self.newOsc].stop, WINDOW_OSC * pow2(self.newOsc), -25, -100 - self.windows[oscIndex].windowTop, 8), 'p');
     // list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Trigger", &self.osc[self.newOsc].trigger.type, WINDOW_OSC * pow2(self.newOsc), -75, -100 - self.windows[oscIndex].windowTop, 8), 'p');
@@ -762,6 +776,7 @@ void init() { // initialises the empv variabes (shared state)
     list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, self.oscTitles, &self.freqOscIndex, pow2(freqIndex), -20, -45 - self.windows[freqIndex].windowTop, 8, metadata), 'p');
     self.windows[freqIndex].dropdownLogicIndex = -1;
     /* orbit */
+    self.orbitStop = 0;
     self.orbitXScale = 70;
     self.orbitYScale = 70;
     self.orbitSamples = 20;
@@ -787,7 +802,8 @@ void init() { // initialises the empv variabes (shared state)
     list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("X source", self.logVariables, &self.orbitDataIndex[1], WINDOW_ORBIT, -60, -25 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
     list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbitXScale, WINDOW_ORBIT, DIAL_EXP, -20, -25 - self.windows[orbitIndex].windowTop, 8, 1, 500), 'p');
     list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbitYScale, WINDOW_ORBIT, DIAL_EXP, -20, -60 - self.windows[orbitIndex].windowTop, 8, 1, 500), 'p');
-    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Samples", &self.orbitSamples, WINDOW_ORBIT, DIAL_EXP, -50, -90 - self.windows[orbitIndex].windowTop, 8, 1, 500), 'p');
+    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Samples", &self.orbitSamples, WINDOW_ORBIT, DIAL_EXP, -68, -95 - self.windows[orbitIndex].windowTop, 8, 1, 500), 'p');
+    list_append(self.windows[orbitIndex].switches, (unitype) (void *) switchInit("Pause", &self.orbitStop, WINDOW_ORBIT, -20, -95 - self.windows[orbitIndex].windowTop, 8), 'p');
     /* editor */
     int editorIndex = ilog2(WINDOW_EDITOR);
     strcpy(self.windows[editorIndex].title, "Editor");
@@ -837,7 +853,7 @@ void dialTick(int window) {
     for (int i = 0; i < self.windows[window].dials -> length; i++) {
         dial_t *dialp = (dial_t *) (self.windows[window].dials -> data[i].p);
         if ((dialp -> window & windowID) != 0) {
-            textGLWriteString(dialp -> label, self.windows[window].windowCoords[2] + dialp -> position[0], self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dialp -> position[1] + 15, dialp -> size - 1, 50);
+            textGLWriteUnicode(dialp -> label, self.windows[window].windowCoords[2] + dialp -> position[0], self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dialp -> position[1] + 15, dialp -> size - 1, 50);
             turtlePenSize(dialp -> size * 2);
             double dialX = self.windows[window].windowCoords[2] + dialp -> position[0];
             double dialY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dialp -> position[1];
@@ -1808,19 +1824,21 @@ void renderInfoData() {
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         /* refresh button */
         if (self.infoRefresh) {
-            /* close all existing logging sockets */
-            for (int i = 1; i < self.logSockets -> length; i++) {
-                closesocket(*((SOCKET *) self.logSockets -> data[i].p));
+            if (self.commsEnabled) {
+                /* close all existing logging sockets */
+                for (int i = 1; i < self.logSockets -> length; i++) {
+                    closesocket(*((SOCKET *) self.logSockets -> data[i].p));
+                }
+                /* IMPORTANT - must close and reopen command socket (otherwise log info command is out of date) */
+                closesocket(*self.cmdSocket);
+                self.cmdSocket = win32tcpCreateSocket();
+                unsigned char receiveBuffer[10] = {0};
+                win32tcpReceive(self.cmdSocket, receiveBuffer, 1);
+                unsigned char amdc_cmd_id[2] = {12, 34};
+                win32tcpSend(self.cmdSocket, amdc_cmd_id, 2);
+                printf("Successfully created AMDC cmd socket with id %d\n", *receiveBuffer);
+                self.cmdSocketID = *receiveBuffer;
             }
-            /* IMPORTANT - must close and reopen command socket (otherwise log info command is out of date) */
-            closesocket(*self.cmdSocket);
-            self.cmdSocket = win32tcpCreateSocket();
-            unsigned char receiveBuffer[10] = {0};
-            win32tcpReceive(self.cmdSocket, receiveBuffer, 1);
-            unsigned char amdc_cmd_id[2] = {12, 34};
-            win32tcpSend(self.cmdSocket, amdc_cmd_id, 2);
-            printf("Successfully created AMDC cmd socket with id %d\n", *receiveBuffer);
-            self.cmdSocketID = *receiveBuffer;
             populateLoggedVariables();
             /* update broken dropdowns */
             for (int i = 0; i < self.windowRender -> length; i++) {
