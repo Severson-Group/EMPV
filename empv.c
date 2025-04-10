@@ -927,7 +927,7 @@ void switchTick(int window) {
         if ((switchp -> window & windowID) != 0) {
             double switchX = self.windows[window].windowCoords[2] + switchp -> position[0];
             double switchY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + switchp -> position[1];
-            textGLWriteString(switchp -> label, switchX, switchY + 15, switchp -> size - 1, 50);
+            textGLWriteUnicode(switchp -> label, switchX, switchY + 15, switchp -> size - 1, 50);
             turtlePenColor(self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14]);
             turtlePenSize(switchp -> size * 1.2);
             turtleGoto(switchX - switchp -> size * 0.8, switchY);
@@ -983,9 +983,9 @@ void dropdownTick(int window) {
             double dropdownX = self.windows[window].windowCoords[2] + dropdown -> position[0];
             double dropdownY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1];
             if (strlen(dropdown -> label) > 0) {
-                textGLWriteString(dropdown -> label, dropdownX - 5, dropdownY + 15, dropdown -> size - 1, 50);
+                textGLWriteUnicode(dropdown -> label, dropdownX - 5, dropdownY + 15, dropdown -> size - 1, 50);
             }
-            double xfactor = textGLGetStringLength(dropdown -> options -> data[dropdown -> index].s, dropdown -> size - 1);
+            double xfactor = textGLGetUnicodeLength(dropdown -> options -> data[dropdown -> index].s, dropdown -> size - 1);
             if (self.windows[window].windowSide < (xfactor - dropdown -> position[0] + 10)) {
                 self.windows[window].windowSide = xfactor - dropdown -> position[0] + 10;
             }
@@ -1098,7 +1098,7 @@ void buttonTick(int window) {
         if ((button -> window & windowID) != 0) {
             double buttonX = self.windows[window].windowCoords[2] + button -> position[0];
             double buttonY = self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + button -> position[1];
-            double buttonWidth = textGLGetStringLength(button -> label, button -> size);
+            double buttonWidth = textGLGetUnicodeLength(button -> label, button -> size);
             double buttonHeight = 14;
             if (button -> status == 0) {
                 turtleRectangle(buttonX - buttonWidth / 2, buttonY - buttonHeight / 2, buttonX + buttonWidth / 2, buttonY + buttonHeight / 2, self.themeColors[self.theme + 0], self.themeColors[self.theme + 1], self.themeColors[self.theme + 2], 0);
@@ -1106,7 +1106,7 @@ void buttonTick(int window) {
                 turtleRectangle(buttonX - buttonWidth / 2, buttonY - buttonHeight / 2, buttonX + buttonWidth / 2, buttonY + buttonHeight / 2, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 0);
             }
             turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
-            textGLWriteString(button -> label, buttonX, buttonY, button -> size - 1, 50);
+            textGLWriteUnicode(button -> label, buttonX, buttonY, button -> size - 1, 50);
             // if (self.windowRender -> data[self.windowRender -> length - 1].i == windowID) {
                 if (self.mouseDown) {
                     if (button -> status < 0) {

@@ -251,7 +251,7 @@ double textGLGetStringLength(const char *str, double size) {
     return textGLGetLength(converted, len, size);
 }
 
-double textGLGetUnicodeLength(const char *str, int textLength, double size) { // gets the length of a u-string in pixels on the screen
+double textGLGetUnicodeLength(const char *str, double size) { // gets the length of a u-string in pixels on the screen
     int len = strlen((char *) str);
     unsigned int converted[len]; // max number of characters in a utf-8 string of length len
     int byteLength;
