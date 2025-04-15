@@ -146,8 +146,8 @@ typedef struct { // oscilloscope view
     int dataIndex[4]; // index of data list for oscilloscope source (up to four channels)
     int oldSelectedChannel; // keep track of selected channel last tick
     int selectedChannel; // selected channel (1-4) of oscilloscope
-    int leftBound; // left bound (index in data list) - global per oscilloscope
-    int rightBound; // right bound (index in data list) - global per oscilloscope
+    int leftBound[4]; // left bound (index in data list) - local per channel
+    int rightBound[4]; // right bound (index in data list) - local per channel
     double bottomBound[4]; // bottom bound (y value) - local per channel
     double topBound[4]; // top bound (y value) - local per channel
     double dummyTopBound; // dummy top bound for manipulation via dial
@@ -606,16 +606,12 @@ void createNewOsc() {
     self.osc[self.newOsc].dataIndex[3] = 0; // unused
     self.osc[self.newOsc].selectedChannel = 0;
     self.osc[self.newOsc].oldSelectedChannel = 0;
-    self.osc[self.newOsc].leftBound = 1;
-    self.osc[self.newOsc].rightBound = 1;
-    self.osc[self.newOsc].bottomBound[0] = -100;
-    self.osc[self.newOsc].bottomBound[1] = -100;
-    self.osc[self.newOsc].bottomBound[2] = -100;
-    self.osc[self.newOsc].bottomBound[3] = -100;
-    self.osc[self.newOsc].topBound[0] = 100;
-    self.osc[self.newOsc].topBound[1] = 100;
-    self.osc[self.newOsc].topBound[2] = 100;
-    self.osc[self.newOsc].topBound[3] = 100;
+    for (int i = 0; i < 4; i++) {
+        self.osc[self.newOsc].leftBound[i] = 1;
+        self.osc[self.newOsc].rightBound[i] = 1;
+        self.osc[self.newOsc].bottomBound[i] = -100;
+        self.osc[self.newOsc].topBound[i] = 100;
+    }
     self.osc[self.newOsc].dummyTopBound = 100;
     self.osc[self.newOsc].windowSizeMicroseconds = 500000;
     self.osc[self.newOsc].stop = 0;
