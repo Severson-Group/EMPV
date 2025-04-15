@@ -475,7 +475,7 @@ void populateLoggedVariables() {
         list_append(self.logSockets, (unitype) NULL, 'p');
         list_append(self.logSocketIDs, (unitype) -1, 'i');
         list_append(self.data, (unitype) list_init(), 'r');
-        list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120.0, 'd'); // set samples/s
+        list_append(self.data -> data[self.data -> length - 1].r, (unitype) 240.0, 'd'); // set samples/s
         list_append(self.logVariables, (unitype) "Demo3", 's');
         list_append(self.logSlots, (unitype) -1, 'i');
         list_append(self.logSockets, (unitype) NULL, 'p');
@@ -1371,24 +1371,34 @@ void renderWindow(int window) {
 
 void setBoundsNoTrigger(int oscIndex, int stopped) {
     if (!stopped) {
-        self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] = self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> length;
-        for (int i = 1; i < 4; i++) {
-            if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] == 0) {
-                self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] = self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> length;
-            } else {
-                break;
+        // self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] = self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> length;
+        for (int i = 0; i < 4; i++) {
+            self.osc[oscIndex].rightBound[i] = self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> length;
+            // if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] == 0) {
+            //     self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] = self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> length;
+            // } else {
+            //     break;
+            // }
+            if (self.osc[oscIndex].rightBound[i] - self.osc[oscIndex].leftBound[i] < self.osc[oscIndex].windowSizeSamples[i]) {
+                self.osc[oscIndex].leftBound[i] = self.osc[oscIndex].rightBound[i] - self.osc[oscIndex].windowSizeSamples[i];
+                if (self.osc[oscIndex].leftBound[i] < 0) {
+                    self.osc[oscIndex].leftBound[i] = 1;
+                }
+            }
+            if (self.osc[oscIndex].rightBound[i] > self.osc[oscIndex].leftBound[i] + self.osc[oscIndex].windowSizeSamples[i]) {
+                self.osc[oscIndex].leftBound[i] = self.osc[oscIndex].rightBound[i] - self.osc[oscIndex].windowSizeSamples[i];
             }
         }
     }
-    if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] < self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel]) {
-        self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
-        if (self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] < 0) {
-            self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = 1;
-        }
-    }
-    if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] > self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] + self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel]) {
-        self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
-    }
+    // if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] < self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel]) {
+    //     self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
+    //     if (self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] < 0) {
+    //         self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = 1;
+    //     }
+    // }
+    // if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] > self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] + self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel]) {
+    //     self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
+    // }
 }
 
 void renderOscData(int oscIndex) {
@@ -2126,6 +2136,7 @@ int main(int argc, char *argv[]) {
             // list_append(self.data -> data[1].r, (unitype) (sinValue2), 'd');
             // list_append(self.data -> data[2].r, (unitype) (sinValue3), 'd');
             // list_append(self.data -> data[3].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
+            list_append(self.data -> data[2].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 2) * 25), 'd');
             list_append(self.data -> data[2].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 2) * 25), 'd');
             list_append(self.data -> data[3].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 4) * 25), 'd');
             list_append(self.data -> data[4].r, (unitype) (sin(tick / 5.0 + M_PI / 2) * 25), 'd');
