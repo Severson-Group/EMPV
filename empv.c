@@ -146,8 +146,8 @@ typedef struct { // oscilloscope view
     int dataIndex[4]; // index of data list for oscilloscope source (up to four channels)
     int oldSelectedChannel; // keep track of selected channel last tick
     int selectedChannel; // selected channel (1-4) of oscilloscope
-    int leftBound; // left bound (index in data list) - global per oscilloscope
-    int rightBound; // right bound (index in data list) - global per oscilloscope
+    int leftBound[4]; // left bound (index in data list) - local per channel
+    int rightBound[4]; // right bound (index in data list) - local per channel
     double bottomBound[4]; // bottom bound (y value) - local per channel
     double topBound[4]; // top bound (y value) - local per channel
     double dummyTopBound; // dummy top bound for manipulation via dial
@@ -606,16 +606,12 @@ void createNewOsc() {
     self.osc[self.newOsc].dataIndex[3] = 0; // unused
     self.osc[self.newOsc].selectedChannel = 0;
     self.osc[self.newOsc].oldSelectedChannel = 0;
-    self.osc[self.newOsc].leftBound = 1;
-    self.osc[self.newOsc].rightBound = 1;
-    self.osc[self.newOsc].bottomBound[0] = -100;
-    self.osc[self.newOsc].bottomBound[1] = -100;
-    self.osc[self.newOsc].bottomBound[2] = -100;
-    self.osc[self.newOsc].bottomBound[3] = -100;
-    self.osc[self.newOsc].topBound[0] = 100;
-    self.osc[self.newOsc].topBound[1] = 100;
-    self.osc[self.newOsc].topBound[2] = 100;
-    self.osc[self.newOsc].topBound[3] = 100;
+    for (int i = 0; i < 4; i++) {
+        self.osc[self.newOsc].leftBound[i] = 1;
+        self.osc[self.newOsc].rightBound[i] = 1;
+        self.osc[self.newOsc].bottomBound[i] = -100;
+        self.osc[self.newOsc].topBound[i] = 100;
+    }
     self.osc[self.newOsc].dummyTopBound = 100;
     self.osc[self.newOsc].windowSizeMicroseconds = 500000;
     self.osc[self.newOsc].stop = 0;
@@ -1375,23 +1371,23 @@ void renderWindow(int window) {
 
 void setBoundsNoTrigger(int oscIndex, int stopped) {
     if (!stopped) {
-        self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> length;
+        self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] = self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> length;
         for (int i = 1; i < 4; i++) {
-            if (self.osc[oscIndex].rightBound == 0) {
-                self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> length;
+            if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] == 0) {
+                self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] = self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> length;
             } else {
                 break;
             }
         }
     }
-    if (self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound < self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel]) {
-        self.osc[oscIndex].leftBound = self.osc[oscIndex].rightBound - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
-        if (self.osc[oscIndex].leftBound < 0) {
-            self.osc[oscIndex].leftBound = 1;
+    if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] < self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel]) {
+        self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
+        if (self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] < 0) {
+            self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = 1;
         }
     }
-    if (self.osc[oscIndex].rightBound > self.osc[oscIndex].leftBound + self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel]) {
-        self.osc[oscIndex].leftBound = self.osc[oscIndex].rightBound - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
+    if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] > self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] + self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel]) {
+        self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
     }
 }
 
@@ -1402,8 +1398,8 @@ void renderOscData(int oscIndex) {
     left and right bounds are local
     fix dial bleed (maybe make dial in seconds, capped to two decimals)
     */
-    printf("%d %d\n", self.osc[oscIndex].leftBound, self.osc[oscIndex].rightBound);
-    printf("%d %d %d %d\n", self.osc[oscIndex].windowSizeSamples[0], self.osc[oscIndex].windowSizeSamples[1], self.osc[oscIndex].windowSizeSamples[2], self.osc[oscIndex].windowSizeSamples[3]);
+    printf("%d %d\n", self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel], self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel]);
+    // printf("%d %d %d %d\n", self.osc[oscIndex].windowSizeSamples[0], self.osc[oscIndex].windowSizeSamples[1], self.osc[oscIndex].windowSizeSamples[2], self.osc[oscIndex].windowSizeSamples[3]);
     int windowIndex = ilog2(WINDOW_OSC) + oscIndex;
     for (int i = 0; i < 4; i++) {
         self.osc[oscIndex].windowSizeSamples[i] = round((self.osc[oscIndex].windowSizeMicroseconds / 1000000) * self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> data[0].d);
@@ -1420,13 +1416,13 @@ void renderOscData(int oscIndex) {
             list_clear(self.osc[oscIndex].trigger.lastIndex);
             setBoundsNoTrigger(oscIndex, 0);
         } else {
-            self.osc[oscIndex].rightBound = self.osc[oscIndex].trigger.index;
-            if (self.osc[oscIndex].rightBound > self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length) {
-                self.osc[oscIndex].rightBound = self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length;
+            self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].trigger.index;
+            if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] > self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length) {
+                self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] = self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length;
             }
-            self.osc[oscIndex].leftBound = self.osc[oscIndex].trigger.index - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
-            if (self.osc[oscIndex].leftBound < 0) {
-                self.osc[oscIndex].leftBound = 1;
+            self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].trigger.index - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
+            if (self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] < 0) {
+                self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = 1;
             }
 
             /* identify triggerIndex (trigger index is right side of window) */
@@ -1485,16 +1481,17 @@ void renderOscData(int oscIndex) {
         turtlePenUp();
         /* render data */
         turtlePenSize(1);
-        double xquantum = (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0]) / (self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound - 1);
+        double xquantum[4];
         // printf("bounds: %d %d\n", self.osc[oscIndex].leftBound, self.osc[oscIndex].rightBound);
         for (int j = 0; j < 4; j++) {
+                xquantum[j] = (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0]) / (self.osc[oscIndex].rightBound[j] - self.osc[oscIndex].leftBound[j] - 1);
             // if (self.data -> data[self.osc[oscIndex].dataIndex[j]].r -> length >= self.osc[oscIndex].rightBound) {
                 if (self.osc[oscIndex].dataIndex[j] <= 0) {
                     continue;
                 }
                 turtlePenColor(self.themeColors[self.theme + 24 + j * 3], self.themeColors[self.theme + 25 + j * 3], self.themeColors[self.theme + 26 + j * 3]);
-                for (int i = 0; i < self.osc[oscIndex].rightBound - self.osc[oscIndex].leftBound; i++) {
-                    turtleGoto(self.windows[windowIndex].windowCoords[0] + i * xquantum, self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[j]].r -> data[self.osc[oscIndex].leftBound + i].d - self.osc[oscIndex].bottomBound[j]) / (self.osc[oscIndex].topBound[j] - self.osc[oscIndex].bottomBound[j])) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
+                for (int i = 0; i < self.osc[oscIndex].rightBound[j] - self.osc[oscIndex].leftBound[j]; i++) {
+                    turtleGoto(self.windows[windowIndex].windowCoords[0] + i * xquantum[j], self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[j]].r -> data[self.osc[oscIndex].leftBound[j] + i].d - self.osc[oscIndex].bottomBound[j]) / (self.osc[oscIndex].topBound[j] - self.osc[oscIndex].bottomBound[j])) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
                     turtlePenDown();
                 }
                 turtlePenUp();
@@ -1503,12 +1500,12 @@ void renderOscData(int oscIndex) {
         /* render mouse */
         // if (self.windowRender -> data[self.windowRender -> length - 1].i >= WINDOW_OSC) {
             if (self.mx > self.windows[windowIndex].windowCoords[0] + 15 && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) { // unintentional forgot "self.my <" but i prefer it this way
-                int sample = round((self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum);
-                if (self.osc[oscIndex].leftBound + sample >= self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length) {
+                int sample = round((self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum[self.osc[oscIndex].selectedChannel]);
+                if (self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] + sample >= self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length) {
                     goto OSC_SIDE_AXIS; // skip this section
                 }
-                double sampleX = self.windows[windowIndex].windowCoords[0] + sample * xquantum;
-                double sampleY = self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[self.osc[oscIndex].leftBound + sample].d - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel])) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+                double sampleX = self.windows[windowIndex].windowCoords[0] + sample * xquantum[self.osc[oscIndex].selectedChannel];
+                double sampleY = self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] + sample].d - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel])) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
                 turtleRectangle(sampleX - 1, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop, sampleX + 1, self.windows[windowIndex].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
                 turtleRectangle(self.windows[windowIndex].windowCoords[0], sampleY - 1, self.windows[windowIndex].windowCoords[2], sampleY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
                 turtlePenColor(215, 215, 215);
@@ -1518,7 +1515,7 @@ void renderOscData(int oscIndex) {
                 turtlePenUp();
                 char sampleValue[24];
                 /* render side box */
-                sprintf(sampleValue, "%.02lf", self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[self.osc[oscIndex].leftBound + sample].d);
+                sprintf(sampleValue, "%.02lf", self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] + sample].d);
                 double boxLength = textGLGetStringLength(sampleValue, 8);
                 double boxX = self.windows[windowIndex].windowCoords[0] + 12;
                 if (sampleX - boxX < 40) {
@@ -1596,16 +1593,16 @@ void renderOscData(int oscIndex) {
 void renderFreqData() {
     int windowIndex = ilog2(WINDOW_FREQ);
     /* linear windowing function over 10% of the sample */
-    int dataLength = self.osc[self.freqOscIndex].rightBound - self.osc[self.freqOscIndex].leftBound;
+    int dataLength = self.osc[self.freqOscIndex].rightBound[self.freqOscChannel] - self.osc[self.freqOscIndex].leftBound[self.freqOscChannel];
     int threshold = (dataLength) * 0.1;
     double damping = 1.0 / threshold;
     list_clear(self.windowData);
-    if (self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> length < self.osc[self.freqOscIndex].rightBound) {
+    if (self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> length < self.osc[self.freqOscIndex].rightBound[self.freqOscChannel]) {
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         return;
     }
     for (int i = 0; i < dataLength; i++) {
-        double dataPoint = self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> data[i + self.osc[self.freqOscIndex].leftBound].d;
+        double dataPoint = self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> data[i + self.osc[self.freqOscIndex].leftBound[self.freqOscChannel]].d;
         if (i < threshold) {
             dataPoint *= damping * (i + 1);
         }
@@ -1663,7 +1660,7 @@ void renderFreqData() {
         // if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_FREQ) {
             if (self.mx > self.windows[windowIndex].windowCoords[0] && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) {
                 double sample = (self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum + self.freqLeftBound;
-                if (self.osc[self.freqOscIndex].leftBound + sample >= self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> length) {
+                if (self.osc[self.freqOscIndex].leftBound[self.freqOscChannel] + sample >= self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> length) {
                     return;
                 }
                 int roundedSample = round(sample);
