@@ -1371,34 +1371,21 @@ void renderWindow(int window) {
 
 void setBoundsNoTrigger(int oscIndex, int stopped) {
     if (!stopped) {
-        // self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] = self.data -> data[self.osc[oscIndex].dataIndex[0]].r -> length;
         for (int i = 0; i < 4; i++) {
             self.osc[oscIndex].rightBound[i] = self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> length;
-            // if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] == 0) {
-            //     self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] = self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> length;
-            // } else {
-            //     break;
-            // }
-            if (self.osc[oscIndex].rightBound[i] - self.osc[oscIndex].leftBound[i] < self.osc[oscIndex].windowSizeSamples[i]) {
-                self.osc[oscIndex].leftBound[i] = self.osc[oscIndex].rightBound[i] - self.osc[oscIndex].windowSizeSamples[i];
-                if (self.osc[oscIndex].leftBound[i] < 0) {
-                    self.osc[oscIndex].leftBound[i] = 1;
-                }
-            }
-            if (self.osc[oscIndex].rightBound[i] > self.osc[oscIndex].leftBound[i] + self.osc[oscIndex].windowSizeSamples[i]) {
-                self.osc[oscIndex].leftBound[i] = self.osc[oscIndex].rightBound[i] - self.osc[oscIndex].windowSizeSamples[i];
-            }
         }
     }
-    // if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] < self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel]) {
-    //     self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
-    //     if (self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] < 0) {
-    //         self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = 1;
-    //     }
-    // }
-    // if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] > self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] + self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel]) {
-    //     self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
-    // }
+    for (int i = 0; i < 4; i++) {
+        if (self.osc[oscIndex].rightBound[i] - self.osc[oscIndex].leftBound[i] < self.osc[oscIndex].windowSizeSamples[i]) {
+            self.osc[oscIndex].leftBound[i] = self.osc[oscIndex].rightBound[i] - self.osc[oscIndex].windowSizeSamples[i];
+            if (self.osc[oscIndex].leftBound[i] < 0) {
+                self.osc[oscIndex].leftBound[i] = 1;
+            }
+        }
+        if (self.osc[oscIndex].rightBound[i] > self.osc[oscIndex].leftBound[i] + self.osc[oscIndex].windowSizeSamples[i]) {
+            self.osc[oscIndex].leftBound[i] = self.osc[oscIndex].rightBound[i] - self.osc[oscIndex].windowSizeSamples[i];
+        }
+    }
 }
 
 void renderOscData(int oscIndex) {
@@ -1408,7 +1395,7 @@ void renderOscData(int oscIndex) {
     left and right bounds are local
     fix dial bleed (maybe make dial in seconds, capped to two decimals)
     */
-    printf("%d %d\n", self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel], self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel]);
+    // printf("%d %d\n", self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel], self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel]);
     // printf("%d %d %d %d\n", self.osc[oscIndex].windowSizeSamples[0], self.osc[oscIndex].windowSizeSamples[1], self.osc[oscIndex].windowSizeSamples[2], self.osc[oscIndex].windowSizeSamples[3]);
     int windowIndex = ilog2(WINDOW_OSC) + oscIndex;
     for (int i = 0; i < 4; i++) {
