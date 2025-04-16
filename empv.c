@@ -71,6 +71,7 @@ typedef struct { // dial
     double size;
     double position[2]; // xOffset, yOffset
     double range[2];
+    double renderNumberFactor; // divide rendered variable by this amount
     double *variable;
 } dial_t;
 
@@ -220,7 +221,7 @@ typedef struct { // all the empv shared state is here
 empv_t self; // global state
 
 /* initialise UI elements */
-dial_t *dialInit(char *label, double *variable, int window, int type, double xOffset, double yOffset, double size, double bottom, double top) {
+dial_t *dialInit(char *label, double *variable, int window, int type, double xOffset, double yOffset, double size, double bottom, double top, double renderNumberFactor) {
     dial_t *dial = malloc(sizeof(dial_t));
     if (label == NULL) {
         memcpy(dial -> label, "", strlen("") + 1);
@@ -236,6 +237,7 @@ dial_t *dialInit(char *label, double *variable, int window, int type, double xOf
     dial -> range[0] = bottom;
     dial -> range[1] = top;
     dial -> variable = variable;
+    dial -> renderNumberFactor = renderNumberFactor;
     return dial;
 }
 
@@ -613,7 +615,7 @@ void createNewOsc() {
         self.osc[self.newOsc].topBound[i] = 100;
     }
     self.osc[self.newOsc].dummyTopBound = 100;
-    self.osc[self.newOsc].windowSizeMicroseconds = 500000;
+    self.osc[self.newOsc].windowSizeMicroseconds = 1000000;
     self.osc[self.newOsc].stop = 0;
     int oscIndex = ilog2(WINDOW_OSC) + self.newOsc;
     sprintf(self.windows[oscIndex].title, "Oscilloscope %d", self.newOsc + 1);
@@ -634,11 +636,11 @@ void createNewOsc() {
     self.windows[oscIndex].switches = list_init();
     self.windows[oscIndex].dropdowns = list_init();
     self.windows[oscIndex].buttons = list_init();
-    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit(u8"Win (µs)", &self.osc[self.newOsc].windowSizeMicroseconds, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -25 - self.windows[oscIndex].windowTop, 8, 1, 10000000), 'p');
-    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[self.newOsc].dummyTopBound, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -65 - self.windows[oscIndex].windowTop, 8, 1, 10000), 'p');
+    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Win (ms)", &self.osc[self.newOsc].windowSizeMicroseconds, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -25 - self.windows[oscIndex].windowTop, 8, 1000, 10000000, 1000), 'p');
+    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[self.newOsc].dummyTopBound, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -65 - self.windows[oscIndex].windowTop, 8, 1, 10000, 1), 'p');
     list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Pause", &self.osc[self.newOsc].stop, WINDOW_OSC * pow2(self.newOsc), -25, -100 - self.windows[oscIndex].windowTop, 8), 'p');
     // list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Trigger", &self.osc[self.newOsc].trigger.type, WINDOW_OSC * pow2(self.newOsc), -75, -100 - self.windows[oscIndex].windowTop, 8), 'p');
-    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Threshold", &self.osc[self.newOsc].trigger.threshold, WINDOW_OSC * pow2(self.newOsc), DIAL_LINEAR, -75, -135 - self.windows[oscIndex].windowTop, 8, -100, 100), 'p');
+    list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Threshold", &self.osc[self.newOsc].trigger.threshold, WINDOW_OSC * pow2(self.newOsc), DIAL_LINEAR, -75, -135 - self.windows[oscIndex].windowTop, 8, -100, 100, 1), 'p');
     list_t *triggerOptions = list_init();
     list_append(triggerOptions, (unitype) "None", 's');
     list_append(triggerOptions, (unitype) "Rising", 's');
@@ -761,7 +763,7 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[freqIndex].switches = list_init();
     self.windows[freqIndex].dropdowns = list_init();
     self.windows[freqIndex].buttons = list_init();
-    list_append(self.windows[freqIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.topFreq, WINDOW_FREQ, DIAL_EXP, -25, -25 - self.windows[freqIndex].windowTop, 8, 1, 500), 'p');
+    list_append(self.windows[freqIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.topFreq, WINDOW_FREQ, DIAL_EXP, -25, -25 - self.windows[freqIndex].windowTop, 8, 1, 500, 1), 'p');
     list_t *freqChannels = list_init();
     list_append(freqChannels, (unitype) "Channel 1", 's');
     list_append(freqChannels, (unitype) "Channel 2", 's');
@@ -797,9 +799,9 @@ void init() { // initialises the empv variabes (shared state)
     self.windows[orbitIndex].buttons = list_init();
     list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("Y source", self.logVariables, &self.orbitDataIndex[0], WINDOW_ORBIT, -60, -60 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
     list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("X source", self.logVariables, &self.orbitDataIndex[1], WINDOW_ORBIT, -60, -25 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
-    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbitXScale, WINDOW_ORBIT, DIAL_EXP, -20, -25 - self.windows[orbitIndex].windowTop, 8, 1, 500), 'p');
-    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbitYScale, WINDOW_ORBIT, DIAL_EXP, -20, -60 - self.windows[orbitIndex].windowTop, 8, 1, 500), 'p');
-    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Samples", &self.orbitSamples, WINDOW_ORBIT, DIAL_EXP, -68, -95 - self.windows[orbitIndex].windowTop, 8, 1, 500), 'p');
+    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbitXScale, WINDOW_ORBIT, DIAL_EXP, -20, -25 - self.windows[orbitIndex].windowTop, 8, 1, 500, 1), 'p');
+    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbitYScale, WINDOW_ORBIT, DIAL_EXP, -20, -60 - self.windows[orbitIndex].windowTop, 8, 1, 500, 1), 'p');
+    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Samples", &self.orbitSamples, WINDOW_ORBIT, DIAL_EXP, -68, -95 - self.windows[orbitIndex].windowTop, 8, 1, 500, 1), 'p');
     list_append(self.windows[orbitIndex].switches, (unitype) (void *) switchInit("Pause", &self.orbitStop, WINDOW_ORBIT, -20, -95 - self.windows[orbitIndex].windowTop, 8), 'p');
     /* editor */
     int editorIndex = ilog2(WINDOW_EDITOR);
@@ -910,7 +912,7 @@ void dialTick(int window) {
                 }
             }
             char bubble[24];
-            double rounded = round(*(dialp -> variable));
+            double rounded = round(*(dialp -> variable) / dialp -> renderNumberFactor);
             sprintf(bubble, "%.0lf", rounded);
             textGLWriteString(bubble, dialX + dialp -> size + 3, dialY, 4, 0);
         }
@@ -1413,13 +1415,17 @@ void renderOscData(int oscIndex) {
             list_clear(self.osc[oscIndex].trigger.lastIndex);
             setBoundsNoTrigger(oscIndex, 0);
         } else {
-            self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].trigger.index;
-            if (self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] > self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length) {
-                self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel] = self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length;
-            }
-            self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = self.osc[oscIndex].trigger.index - self.osc[oscIndex].windowSizeSamples[self.osc[oscIndex].selectedChannel];
-            if (self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] < 0) {
-                self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] = 1;
+            /* calculate difference in time from trigger point*/
+            double timeDifference = (self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length - self.osc[oscIndex].trigger.index) / self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[0].d;
+            for (int i = 0; i < 4; i++) {
+                self.osc[oscIndex].rightBound[i] = self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> length - timeDifference * self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> data[0].d;
+                if (self.osc[oscIndex].rightBound[i] > self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> length) {
+                    self.osc[oscIndex].rightBound[i] = self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> length;
+                }
+                self.osc[oscIndex].leftBound[i] = self.osc[oscIndex].rightBound[i] - self.osc[oscIndex].windowSizeSamples[i];
+                if (self.osc[oscIndex].leftBound[i] < 0) {
+                    self.osc[oscIndex].leftBound[i] = 1;
+                }
             }
 
             /* identify triggerIndex (trigger index is right side of window) */
