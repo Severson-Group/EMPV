@@ -1609,11 +1609,8 @@ void renderFreqData() {
         if (self.freqRightBound > self.phaseData -> length / 2 + self.phaseData -> length % 2) {
             self.freqRightBound = self.phaseData -> length / 2 + self.phaseData -> length % 2;
         }
-        for (int i = self.freqLeftBound; i < self.freqRightBound; i++) { // only render the bottom half of frequency graph
+        for (int i = self.freqLeftBound; i < self.freqRightBound; i++) {
             double magnitude = self.phaseData -> data[i].d;
-            if (magnitude < 0) {
-                // magnitude *= -1;
-            }
             turtleGoto(self.windows[windowIndex].windowCoords[0] + (i - self.freqLeftBound) * xquantum, (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
             turtlePenDown();
         }
