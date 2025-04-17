@@ -1917,7 +1917,7 @@ void renderInfoData() {
             sprintf(sampleString, "%d", totalSamples);
             textGLWriteString(sampleString, self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 50 + samplesColumnWidth + totalColumnWidth / 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 25 - (i - 1) * 10, 6, 50);
         }
-        self.windows[windowIndex].windowMinX = nameColumnWidth + samplesColumnWidth + totalColumnWidth + 83;
+        self.windows[windowIndex].windowMinX = nameColumnWidth + samplesColumnWidth + totalColumnWidth + 103;
     }
 }
 
