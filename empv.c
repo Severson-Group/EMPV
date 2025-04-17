@@ -1481,65 +1481,60 @@ void renderOscData(int oscIndex) {
         /* render data */
         turtlePenSize(1);
         double xquantum[4];
-        // printf("bounds: %d %d\n", self.osc[oscIndex].leftBound, self.osc[oscIndex].rightBound);
         for (int j = 0; j < 4; j++) {
-                xquantum[j] = (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0]) / (self.osc[oscIndex].rightBound[j] - self.osc[oscIndex].leftBound[j] - 1);
-            // if (self.data -> data[self.osc[oscIndex].dataIndex[j]].r -> length >= self.osc[oscIndex].rightBound) {
-                if (self.osc[oscIndex].dataIndex[j] <= 0) {
-                    continue;
-                }
-                turtlePenColor(self.themeColors[self.theme + 24 + j * 3], self.themeColors[self.theme + 25 + j * 3], self.themeColors[self.theme + 26 + j * 3]);
-                for (int i = 0; i < self.osc[oscIndex].rightBound[j] - self.osc[oscIndex].leftBound[j]; i++) {
-                    turtleGoto(self.windows[windowIndex].windowCoords[0] + i * xquantum[j], self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[j]].r -> data[self.osc[oscIndex].leftBound[j] + i].d - self.osc[oscIndex].bottomBound[j]) / (self.osc[oscIndex].topBound[j] - self.osc[oscIndex].bottomBound[j])) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
-                    turtlePenDown();
-                }
-                turtlePenUp();
-            // }
+            xquantum[j] = (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0]) / (self.osc[oscIndex].rightBound[j] - self.osc[oscIndex].leftBound[j] - 1);
+            if (self.osc[oscIndex].dataIndex[j] <= 0) {
+                continue;
+            }
+            turtlePenColor(self.themeColors[self.theme + 24 + j * 3], self.themeColors[self.theme + 25 + j * 3], self.themeColors[self.theme + 26 + j * 3]);
+            for (int i = 0; i < self.osc[oscIndex].rightBound[j] - self.osc[oscIndex].leftBound[j]; i++) {
+                turtleGoto(self.windows[windowIndex].windowCoords[0] + i * xquantum[j], self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[j]].r -> data[self.osc[oscIndex].leftBound[j] + i].d - self.osc[oscIndex].bottomBound[j]) / (self.osc[oscIndex].topBound[j] - self.osc[oscIndex].bottomBound[j])) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
+                turtlePenDown();
+            }
+            turtlePenUp();
         }
         /* render mouse */
-        // if (self.windowRender -> data[self.windowRender -> length - 1].i >= WINDOW_OSC) {
-            if (self.mx > self.windows[windowIndex].windowCoords[0] + 15 && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) { // unintentional forgot "self.my <" but i prefer it this way
-                int sample = round((self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum[self.osc[oscIndex].selectedChannel]);
-                if (self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] + sample >= self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length) {
-                    goto OSC_SIDE_AXIS; // skip this section
-                }
-                double sampleX = self.windows[windowIndex].windowCoords[0] + sample * xquantum[self.osc[oscIndex].selectedChannel];
-                double sampleY = self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] + sample].d - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel])) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
-                turtleRectangle(sampleX - 1, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop, sampleX + 1, self.windows[windowIndex].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
-                turtleRectangle(self.windows[windowIndex].windowCoords[0], sampleY - 1, self.windows[windowIndex].windowCoords[2], sampleY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
-                turtlePenColor(215, 215, 215);
-                turtlePenSize(4);
-                turtleGoto(sampleX, sampleY);
-                turtlePenDown();
-                turtlePenUp();
-                char sampleValue[24];
-                /* render side box */
-                sprintf(sampleValue, "%.02lf", self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] + sample].d);
-                double boxLength = textGLGetStringLength(sampleValue, 8);
-                double boxX = self.windows[windowIndex].windowCoords[0] + 12;
-                if (sampleX - boxX < 40) {
-                    boxX = self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - boxLength - 5;
-                }
-                double boxY = sampleY + 10;
-                turtleRectangle(boxX, boxY - 5, boxX + 4 + boxLength, boxY + 5, 215, 215, 215, 0);
-                turtlePenColor(0, 0, 0);
-                textGLWriteString(sampleValue, boxX + 2, boxY - 1, 8, 0);
-                /* render top box */
-                sprintf(sampleValue, "%d", sample);
-                double boxLength2 = textGLGetStringLength(sampleValue, 8);
-                double boxY2 = sampleY + 10;
-                double boxX2 = sampleX - boxLength2 / 2;
-                if (boxX2 - 15 < self.windows[windowIndex].windowCoords[0]) {
-                    boxX2 = self.windows[windowIndex].windowCoords[0] + 15;
-                }
-                if (boxX2 + boxLength2 + self.windows[windowIndex].windowSide + 5 > self.windows[windowIndex].windowCoords[2]) {
-                    boxX2 = self.windows[windowIndex].windowCoords[2] - boxLength2 - self.windows[windowIndex].windowSide - 5;
-                }
-                turtleRectangle(boxX2 - 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 16, boxX2 + boxLength2 + 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 5, 215, 215, 215, 0);
-                turtlePenColor(0, 0, 0);
-                textGLWriteString(sampleValue, boxX2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 11, 8, 0);
+        if (self.mx > self.windows[windowIndex].windowCoords[0] + 15 && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) { // unintentional forgot "self.my <" but i prefer it this way
+            int sample = round((self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum[self.osc[oscIndex].selectedChannel]);
+            if (self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] + sample >= self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> length) {
+                goto OSC_SIDE_AXIS; // skip this section
             }
-        // }
+            double sampleX = self.windows[windowIndex].windowCoords[0] + sample * xquantum[self.osc[oscIndex].selectedChannel];
+            double sampleY = self.windows[windowIndex].windowCoords[1] + ((self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] + sample].d - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel])) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+            turtleRectangle(sampleX - 1, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop, sampleX + 1, self.windows[windowIndex].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+            turtleRectangle(self.windows[windowIndex].windowCoords[0], sampleY - 1, self.windows[windowIndex].windowCoords[2], sampleY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+            turtlePenColor(215, 215, 215);
+            turtlePenSize(4);
+            turtleGoto(sampleX, sampleY);
+            turtlePenDown();
+            turtlePenUp();
+            char sampleValue[24];
+            /* render side box */
+            sprintf(sampleValue, "%.02lf", self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel] + sample].d);
+            double boxLength = textGLGetStringLength(sampleValue, 8);
+            double boxX = self.windows[windowIndex].windowCoords[0] + 12;
+            if (sampleX - boxX < 40) {
+                boxX = self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - boxLength - 5;
+            }
+            double boxY = sampleY + 10;
+            turtleRectangle(boxX, boxY - 5, boxX + 4 + boxLength, boxY + 5, 215, 215, 215, 0);
+            turtlePenColor(0, 0, 0);
+            textGLWriteString(sampleValue, boxX + 2, boxY - 1, 8, 0);
+            /* render top box */
+            sprintf(sampleValue, "%d", sample);
+            double boxLength2 = textGLGetStringLength(sampleValue, 8);
+            double boxY2 = sampleY + 10;
+            double boxX2 = sampleX - boxLength2 / 2;
+            if (boxX2 - 15 < self.windows[windowIndex].windowCoords[0]) {
+                boxX2 = self.windows[windowIndex].windowCoords[0] + 15;
+            }
+            if (boxX2 + boxLength2 + self.windows[windowIndex].windowSide + 5 > self.windows[windowIndex].windowCoords[2]) {
+                boxX2 = self.windows[windowIndex].windowCoords[2] - boxLength2 - self.windows[windowIndex].windowSide - 5;
+            }
+            turtleRectangle(boxX2 - 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 16, boxX2 + boxLength2 + 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 5, 215, 215, 215, 0);
+            turtlePenColor(0, 0, 0);
+            textGLWriteString(sampleValue, boxX2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 11, 8, 0);
+        }
         /* render side axis */
         OSC_SIDE_AXIS:
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[0] + 10, self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
@@ -1569,23 +1564,21 @@ void renderOscData(int oscIndex) {
             turtleGoto(self.windows[windowIndex].windowCoords[0] + tickLength, ypos);
             turtlePenUp();
         }
-        // if (self.windowRender -> data[self.windowRender -> length - 1].i >= WINDOW_OSC) {
-            int mouseSample = round((self.my - self.windows[windowIndex].windowCoords[1]) / yquantum);
-            if (mouseSample > 0 && mouseSample < tickMarks) {
-                double ypos = self.windows[windowIndex].windowCoords[1] + mouseSample * yquantum;
-                int tickLength = 2;
-                if (mouseSample % (tickMarks / 4) == 0) {
-                    tickLength = 4;
-                }
-                if (self.mx > self.windows[windowIndex].windowCoords[0] && self.mx < self.windows[windowIndex].windowCoords[0] + 15) {
-                    turtleTriangle(self.windows[windowIndex].windowCoords[0] + tickLength + 2, ypos, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
-                    char tickValue[24];
-                    sprintf(tickValue, "%d", (int) (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] / (tickMarks / 2) * mouseSample - self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel]));
-                    turtlePenColor(215, 215, 215);
-                    textGLWriteString(tickValue, self.windows[windowIndex].windowCoords[0] + tickLength + 13, ypos, 8, 0);
-                }
+        int mouseSample = round((self.my - self.windows[windowIndex].windowCoords[1]) / yquantum);
+        if (mouseSample > 0 && mouseSample < tickMarks) {
+            double ypos = self.windows[windowIndex].windowCoords[1] + mouseSample * yquantum;
+            int tickLength = 2;
+            if (mouseSample % (tickMarks / 4) == 0) {
+                tickLength = 4;
             }
-        // }
+            if (self.mx > self.windows[windowIndex].windowCoords[0] && self.mx < self.windows[windowIndex].windowCoords[0] + 15) {
+                turtleTriangle(self.windows[windowIndex].windowCoords[0] + tickLength + 2, ypos, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
+                char tickValue[24];
+                sprintf(tickValue, "%d", (int) (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] / (tickMarks / 2) * mouseSample - self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel]));
+                turtlePenColor(215, 215, 215);
+                textGLWriteString(tickValue, self.windows[windowIndex].windowCoords[0] + tickLength + 13, ypos, 8, 0);
+            }
+        }
     }
 }
 
@@ -1656,74 +1649,159 @@ void renderFreqData() {
         turtlePenUp();
 
         /* render mouse */
-        // if (self.windowRender -> data[self.windowRender -> length - 1].i == WINDOW_FREQ) {
-            if (self.mx > self.windows[windowIndex].windowCoords[0] && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) {
-                double sample = (self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum + self.freqLeftBound;
-                if (self.osc[self.freqOscIndex].leftBound[self.freqOscChannel] + sample >= self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> length) {
-                    return;
+        if (self.mx > self.windows[windowIndex].windowCoords[0] && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) {
+            double sample = (self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum + self.freqLeftBound;
+            if (self.osc[self.freqOscIndex].leftBound[self.freqOscChannel] + sample >= self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> length) {
+                goto FREQ_SIDE_AXIS;
+            }
+            int roundedSample = round(sample);
+            double sampleX = self.windows[windowIndex].windowCoords[0] + (roundedSample - self.freqLeftBound) * xquantum;
+            double sampleY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + (fabs(self.freqData -> data[roundedSample].d) / (self.topFreq)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+            turtleRectangle(sampleX - 1, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop, sampleX + 1, self.windows[windowIndex].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+            turtleRectangle(self.windows[windowIndex].windowCoords[0], sampleY - 1, self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide, sampleY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+            turtlePenColor(215, 215, 215);
+            turtlePenSize(4);
+            turtleGoto(sampleX, sampleY);
+            turtlePenDown();
+            turtlePenUp();
+            char sampleValue[24];
+            /* render side box */
+            sprintf(sampleValue, "%.02lf", fabs(self.freqData -> data[roundedSample].d));
+            double boxLength = textGLGetStringLength(sampleValue, 8);
+            double boxX = self.windows[windowIndex].windowCoords[0] + 2;
+            if (sampleX - boxX < 40) {
+                boxX = self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - boxLength - 5;
+            }
+            double boxY = sampleY + 10;
+            turtleRectangle(boxX, boxY - 5, boxX + 4 + boxLength, boxY + 5, 215, 215, 215, 0);
+            turtlePenColor(0, 0, 0);
+            textGLWriteString(sampleValue, boxX + 2, boxY - 1, 8, 0);
+            /* render top box */
+            double samplesPerSecond = self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> data[0].d;
+            sprintf(sampleValue, "%.1lfHz", sample / (dataLength / samplesPerSecond));
+            double boxLength2 = textGLGetStringLength(sampleValue, 8);
+            double boxX2 = sampleX - boxLength2 / 2;
+            if (boxX2 - 5 < self.windows[windowIndex].windowCoords[0]) {
+                boxX2 = self.windows[windowIndex].windowCoords[0] + 5;
+            }
+            if (boxX2 + boxLength2 + self.windows[windowIndex].windowSide + 5 > self.windows[windowIndex].windowCoords[2]) {
+                boxX2 = self.windows[windowIndex].windowCoords[2] - boxLength2 - self.windows[windowIndex].windowSide - 5;
+            }
+            turtleRectangle(boxX2 - 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 15, boxX2 + boxLength2 + 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 5, 215, 215, 215, 0);
+            turtlePenColor(0, 0, 0);
+            textGLWriteString(sampleValue, boxX2, self.windows[windowIndex].windowCoords[3] - 26, 8, 0);
+            /* scrolling */
+            const double scaleFactor = 1.25;
+            double buckets = (self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum;
+            if (self.mw > 0) {
+                /* zoom in */
+                self.freqZoom *= scaleFactor;
+                if (self.freqZoom > 100.0) {
+                    self.freqZoom = 100.0;
                 }
-                int roundedSample = round(sample);
-                double sampleX = self.windows[windowIndex].windowCoords[0] + (roundedSample - self.freqLeftBound) * xquantum;
-                double sampleY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + (fabs(self.freqData -> data[roundedSample].d) / (self.topFreq)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
-                turtleRectangle(sampleX - 1, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop, sampleX + 1, self.windows[windowIndex].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
-                turtleRectangle(self.windows[windowIndex].windowCoords[0], sampleY - 1, self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide, sampleY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
-                turtlePenColor(215, 215, 215);
-                turtlePenSize(4);
-                turtleGoto(sampleX, sampleY);
-                turtlePenDown();
-                turtlePenUp();
-                char sampleValue[24];
-                /* render side box */
-                sprintf(sampleValue, "%.02lf", fabs(self.freqData -> data[roundedSample].d));
-                double boxLength = textGLGetStringLength(sampleValue, 8);
-                double boxX = self.windows[windowIndex].windowCoords[0] + 2;
-                if (sampleX - boxX < 40) {
-                    boxX = self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - boxLength - 5;
+                self.freqLeftBound += round(buckets - (buckets / scaleFactor));
+                if (self.freqLeftBound >= self.freqRightBound) {
+                    self.freqLeftBound = self.freqRightBound - 1;
                 }
-                double boxY = sampleY + 10;
-                turtleRectangle(boxX, boxY - 5, boxX + 4 + boxLength, boxY + 5, 215, 215, 215, 0);
-                turtlePenColor(0, 0, 0);
-                textGLWriteString(sampleValue, boxX + 2, boxY - 1, 8, 0);
-                /* render top box */
-                double samplesPerSecond = self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> data[0].d;
-                sprintf(sampleValue, "%.1lfHz", sample / (dataLength / samplesPerSecond));
-                double boxLength2 = textGLGetStringLength(sampleValue, 8);
-                double boxX2 = sampleX - boxLength2 / 2;
-                if (boxX2 - 5 < self.windows[windowIndex].windowCoords[0]) {
-                    boxX2 = self.windows[windowIndex].windowCoords[0] + 5;
+            } else if (self.mw < 0) {
+                /* zoom out */
+                self.freqZoom /= scaleFactor;
+                if (self.freqZoom < 1.0) {
+                    self.freqZoom = 1.0;
                 }
-                if (boxX2 + boxLength2 + self.windows[windowIndex].windowSide + 5 > self.windows[windowIndex].windowCoords[2]) {
-                    boxX2 = self.windows[windowIndex].windowCoords[2] - boxLength2 - self.windows[windowIndex].windowSide - 5;
-                }
-                turtleRectangle(boxX2 - 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 15, boxX2 + boxLength2 + 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 5, 215, 215, 215, 0);
-                turtlePenColor(0, 0, 0);
-                textGLWriteString(sampleValue, boxX2, self.windows[windowIndex].windowCoords[3] - 26, 8, 0);
-                /* scrolling */
-                const double scaleFactor = 1.25;
-                double buckets = (self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum;
-                if (self.mw > 0) {
-                    /* zoom in */
-                    self.freqZoom *= scaleFactor;
-                    if (self.freqZoom > 100.0) {
-                        self.freqZoom = 100.0;
-                    }
-                    self.freqLeftBound += round(buckets - (buckets / scaleFactor));
-                    if (self.freqLeftBound >= self.freqRightBound) {
-                        self.freqLeftBound = self.freqRightBound - 1;
-                    }
-                } else if (self.mw < 0) {
-                    /* zoom out */
-                    self.freqZoom /= scaleFactor;
-                    if (self.freqZoom < 1.0) {
-                        self.freqZoom = 1.0;
-                    }
-                    self.freqLeftBound -= round(buckets - (buckets / scaleFactor));
-                    if (self.freqLeftBound < 0) {
-                        self.freqLeftBound = 0;
-                    }
+                self.freqLeftBound -= round(buckets - (buckets / scaleFactor));
+                if (self.freqLeftBound < 0) {
+                    self.freqLeftBound = 0;
                 }
             }
-        // }
+        }
+        FREQ_SIDE_AXIS:
+        /* render side axis */
+        turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[0] + 10, self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+        turtlePenColor(0, 0, 0);
+        turtlePenSize(1);
+        double ycenter = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2;
+        turtleGoto(self.windows[windowIndex].windowCoords[0], ycenter);
+        turtlePenDown();
+        turtleGoto(self.windows[windowIndex].windowCoords[0] + 5, ycenter);
+        turtlePenUp();
+        int tickMarks = round(self.orbitYScale / 4) * 4;
+        double culling = self.orbitYScale;
+        while (culling > 60) {
+            culling /= 4;
+            tickMarks /= 4;
+        }
+        tickMarks = ceil(tickMarks / 4) * 4;
+        double yquantum = (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]) / tickMarks;
+        for (int i = 1; i < tickMarks; i++) {
+            double ypos = self.windows[windowIndex].windowCoords[1] + i * yquantum;
+            turtleGoto(self.windows[windowIndex].windowCoords[0], ypos);
+            turtlePenDown();
+            int tickLength = 2;
+            if (i % (tickMarks / 4) == 0) {
+                tickLength = 4;
+            }
+            turtleGoto(self.windows[windowIndex].windowCoords[0] + tickLength, ypos);
+            turtlePenUp();
+        }
+        int mouseSample = round((self.my - self.windows[windowIndex].windowCoords[1]) / yquantum);
+        if (mouseSample > 0 && mouseSample < tickMarks) {
+            double ypos = self.windows[windowIndex].windowCoords[1] + mouseSample * yquantum;
+            int tickLength = 2;
+            if (mouseSample % (tickMarks / 4) == 0) {
+                tickLength = 4;
+            }
+            if (self.mx > self.windows[windowIndex].windowCoords[0] && self.mx < self.windows[windowIndex].windowCoords[0] + 15) {
+                turtleTriangle(self.windows[windowIndex].windowCoords[0] + tickLength + 2, ypos, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
+                char tickValue[24];
+                sprintf(tickValue, "%d", (int) (self.orbitYScale / tickMarks * mouseSample - self.orbitYScale / 2));
+                turtlePenColor(215, 215, 215);
+                textGLWriteString(tickValue, self.windows[windowIndex].windowCoords[0] + tickLength + 13, ypos, 8, 0);
+            }
+        }
+        /* render bottom axis */
+        turtleRectangle(self.windows[windowIndex].windowCoords[0] + 10, self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide, self.windows[windowIndex].windowCoords[1] + 10, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+        turtlePenColor(0, 0, 0);
+        turtlePenSize(1);
+        double xcenter = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2;
+        turtleGoto(xcenter, self.windows[windowIndex].windowCoords[1]);
+        turtlePenDown();
+        turtleGoto(xcenter, self.windows[windowIndex].windowCoords[1] + 5);
+        turtlePenUp();
+        tickMarks = round(self.orbitXScale / 4) * 4;
+        culling = self.orbitXScale;
+        while (culling > 60) {
+            culling /= 4;
+            tickMarks /= 4;
+        }
+        tickMarks = ceil(tickMarks / 4) * 4;
+        double xquantum = (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]) / tickMarks;
+        for (int i = 1; i < tickMarks; i++) {
+            double xpos = self.windows[windowIndex].windowCoords[0] + i * xquantum;
+            turtleGoto(xpos, self.windows[windowIndex].windowCoords[1]);
+            turtlePenDown();
+            int tickLength = 2;
+            if (i % (tickMarks / 4) == 0) {
+                tickLength = 4;
+            }
+            turtleGoto(xpos, self.windows[windowIndex].windowCoords[1] + tickLength);
+            turtlePenUp();
+        }
+        mouseSample = round((self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum);
+        if (mouseSample > 0 && mouseSample < tickMarks) {
+            double xpos = self.windows[windowIndex].windowCoords[0] + mouseSample * xquantum;
+            int tickLength = 2;
+            if (mouseSample % (tickMarks / 4) == 0) {
+                tickLength = 4;
+            }
+            if (self.my > self.windows[windowIndex].windowCoords[0] && self.my < self.windows[windowIndex].windowCoords[1] + 15) {
+                turtleTriangle(xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 2, xpos + 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, xpos - 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, 215, 215, 215, 0);
+                char tickValue[24];
+                sprintf(tickValue, "%d", (int) (self.orbitXScale / tickMarks * mouseSample - self.orbitXScale / 2));
+                turtlePenColor(215, 215, 215);
+                textGLWriteString(tickValue, xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 17, 8, 50);
+            }
+        }
     }
 }
 
