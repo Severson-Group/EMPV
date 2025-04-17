@@ -1854,23 +1854,21 @@ void renderOrbitData() {
             turtleGoto(self.windows[windowIndex].windowCoords[0] + tickLength, ypos);
             turtlePenUp();
         }
-        // if (self.windowRender -> data[self.windowRender -> length - 1].i >= WINDOW_OSC) {
-            int mouseSample = round((self.my - self.windows[windowIndex].windowCoords[1]) / yquantum);
-            if (mouseSample > 0 && mouseSample < tickMarks) {
-                double ypos = self.windows[windowIndex].windowCoords[1] + mouseSample * yquantum;
-                int tickLength = 2;
-                if (mouseSample % (tickMarks / 4) == 0) {
-                    tickLength = 4;
-                }
-                if (self.mx > self.windows[windowIndex].windowCoords[0] && self.mx < self.windows[windowIndex].windowCoords[0] + 15) {
-                    turtleTriangle(self.windows[windowIndex].windowCoords[0] + tickLength + 2, ypos, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
-                    char tickValue[24];
-                    sprintf(tickValue, "%d", (int) (self.orbitYScale / tickMarks * mouseSample - self.orbitYScale / 2));
-                    turtlePenColor(215, 215, 215);
-                    textGLWriteString(tickValue, self.windows[windowIndex].windowCoords[0] + tickLength + 13, ypos, 8, 0);
-                }
+        int mouseSample = round((self.my - self.windows[windowIndex].windowCoords[1]) / yquantum);
+        if (mouseSample > 0 && mouseSample < tickMarks) {
+            double ypos = self.windows[windowIndex].windowCoords[1] + mouseSample * yquantum;
+            int tickLength = 2;
+            if (mouseSample % (tickMarks / 4) == 0) {
+                tickLength = 4;
             }
-        // }
+            if (self.mx > self.windows[windowIndex].windowCoords[0] && self.mx < self.windows[windowIndex].windowCoords[0] + 15) {
+                turtleTriangle(self.windows[windowIndex].windowCoords[0] + tickLength + 2, ypos, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
+                char tickValue[24];
+                sprintf(tickValue, "%d", (int) (self.orbitYScale / tickMarks * mouseSample - self.orbitYScale / 2));
+                turtlePenColor(215, 215, 215);
+                textGLWriteString(tickValue, self.windows[windowIndex].windowCoords[0] + tickLength + 13, ypos, 8, 0);
+            }
+        }
     }
 }
 
