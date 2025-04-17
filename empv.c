@@ -205,7 +205,8 @@ typedef struct { // all the empv shared state is here
 
 } empv_t;
 
-empv_t self; // global state
+/* global state */
+empv_t self;
 
 /* initialise UI elements */
 dial_t *dialInit(char *label, double *variable, int window, int type, double xOffset, double yOffset, double size, double bottom, double top, double renderNumberFactor) {
@@ -373,7 +374,6 @@ void commsCommand(char *cmd) {
     win32tcpSend(self.cmdSocket, amdc_cmd, strlen(amdc_cmd));
     win32tcpReceive2(self.cmdSocket, self.tcpAsciiReceiveBuffer, strlen(amdc_cmd) + 1);
     win32tcpReceive2(self.cmdSocket, self.tcpAsciiReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
-    // printf("received %s\n", self.tcpAsciiReceiveBuffer);
 }
 
 void commsGetData(int logSlotIndex) {
@@ -404,7 +404,6 @@ void commsGetData(int logSlotIndex) {
         uint32_t data = ((uint32_t) tcpLoggingReceiveBuffer[index + 3]) << 24 | ((uint32_t) tcpLoggingReceiveBuffer[index + 2]) << 16 | ((uint32_t) tcpLoggingReceiveBuffer[index + 1]) << 8 | ((uint32_t) tcpLoggingReceiveBuffer[index + 0]);
         index += 4;
         if (tcpLoggingReceiveBuffer[index] == 0x22 && tcpLoggingReceiveBuffer[index + 1] == 0x22 && tcpLoggingReceiveBuffer[index + 2] == 0x22 && tcpLoggingReceiveBuffer[index + 3] == 0x22) {
-            // printf("logSlotIndex: %d\npacket %d:\nvar_slot: %u\ntimestamp: %u\ndata: %X\n", logSlotIndex, index - 16, varSlot, timestamp, data);
             /* add value to data */
             float dataValue = *(float *) &data;
             list_append(self.data -> data[dataIndex].r, (unitype) (double) dataValue, 'd');
@@ -414,9 +413,6 @@ void commsGetData(int logSlotIndex) {
             index += 4;
         }
     }
-    // char *converted = convertToHex(tcpLoggingReceiveBuffer, TCP_RECEIVE_BUFFER_LENGTH);
-    // printf("received %s\n", converted);
-    // free(converted);
 }
 
 void *commsThreadFunction(void *arg) {
@@ -481,7 +477,6 @@ void populateLoggedVariables() {
     }
     commsCommand("log info");
     self.maxSlots = 0;
-    // printf("received: %s\n", self.tcpAsciiReceiveBuffer);
     /* parse command */
     char *testString = strtok(self.tcpAsciiReceiveBuffer, "\n");
     int stringHold = 0;
@@ -627,7 +622,6 @@ void createNewOsc() {
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Win (ms)", &self.osc[self.newOsc].windowSizeMicroseconds, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -25 - self.windows[oscIndex].windowTop, 8, 1000, 10000000, 1000), 'p');
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Y Scale", &self.osc[self.newOsc].dummyTopBound, WINDOW_OSC * pow2(self.newOsc), DIAL_EXP, -25, -65 - self.windows[oscIndex].windowTop, 8, 1, 10000, 1), 'p');
     list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Pause", &self.osc[self.newOsc].stop, WINDOW_OSC * pow2(self.newOsc), -25, -100 - self.windows[oscIndex].windowTop, 8), 'p');
-    // list_append(self.windows[oscIndex].switches, (unitype) (void *) switchInit("Trigger", &self.osc[self.newOsc].trigger.type, WINDOW_OSC * pow2(self.newOsc), -75, -100 - self.windows[oscIndex].windowTop, 8), 'p');
     list_append(self.windows[oscIndex].dials, (unitype) (void *) dialInit("Threshold", &self.osc[self.newOsc].trigger.threshold, WINDOW_OSC * pow2(self.newOsc), DIAL_LINEAR, -75, -135 - self.windows[oscIndex].windowTop, 8, -100, 100, 1), 'p');
     list_t *triggerOptions = list_init();
     list_append(triggerOptions, (unitype) "None", 's');
@@ -650,8 +644,8 @@ void createNewOsc() {
     self.newOsc++;
 }
 
-/* initialise global state */
-void init() { // initialises the empv variabes (shared state)
+/* initialises the empv variabes (shared state) */
+void init() {
 /* comms */
     self.threadCloseSignal = 0;
     self.maxSlots = 0;
@@ -866,22 +860,20 @@ void dialTick(int window) {
             }
             turtleGoto(dialX + sin(dialAngle / 57.2958) * dialp -> size, dialY + cos(dialAngle / 57.2958) * dialp -> size);
             turtlePenUp();
-            // if (self.windowRender -> data[self.windowRender -> length - 1].i == windowID) {
-                if (self.mouseDown) {
-                    if (dialp -> status[0] < 0) {
-                        self.dialAnchorX = dialX;
-                        self.dialAnchorY = dialY;
-                        dialp -> status[0] *= -1;
-                        dialp -> status[1] = self.mx - dialX;
-                    }
-                } else {
-                    if (self.mx > dialX - dialp -> size && self.mx < dialX + dialp -> size && self.my > dialY - dialp -> size && self.my < dialY + dialp -> size) {
-                        dialp -> status[0] = -1;
-                    } else {
-                        dialp -> status[0] = 0;
-                    }
+            if (self.mouseDown) {
+                if (dialp -> status[0] < 0) {
+                    self.dialAnchorX = dialX;
+                    self.dialAnchorY = dialY;
+                    dialp -> status[0] *= -1;
+                    dialp -> status[1] = self.mx - dialX;
                 }
-            // }
+            } else {
+                if (self.mx > dialX - dialp -> size && self.mx < dialX + dialp -> size && self.my > dialY - dialp -> size && self.my < dialY + dialp -> size) {
+                    dialp -> status[0] = -1;
+                } else {
+                    dialp -> status[0] = 0;
+                }
+            }
             if (dialp -> status[0] > 0) {
                 dialAngle = angleBetween(self.dialAnchorX, self.dialAnchorY, self.mx, self.my);
                 if (self.my < self.dialAnchorY) {
@@ -926,27 +918,23 @@ void switchTick(int window) {
             turtlePenSize(switchp -> size);
             turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
             if (*(switchp -> variable)) {
-                // turtlePenColor(self.themeColors[self.theme + 15], self.themeColors[self.theme + 16], self.themeColors[self.theme + 17]);
                 turtleGoto(switchX + switchp -> size * 0.8, switchY);
             } else {
-                // turtlePenColor(self.themeColors[self.theme + 18], self.themeColors[self.theme + 19], self.themeColors[self.theme + 20]);
                 turtleGoto(switchX - switchp -> size * 0.8, switchY);
             }
             turtlePenDown();
             turtlePenUp();
-            // if (self.windowRender -> data[self.windowRender -> length - 1].i == windowID) {
-                if (self.mouseDown) {
-                    if (switchp -> status < 0) {
-                        switchp -> status *= -1;
-                    }
-                } else {
-                    if (self.mx > switchX - switchp -> size && self.mx < switchX + switchp -> size && self.my > switchY - switchp -> size && self.my < switchY + switchp -> size) {
-                        switchp -> status = -1;
-                    } else {
-                        switchp -> status = 0;
-                    }
+            if (self.mouseDown) {
+                if (switchp -> status < 0) {
+                    switchp -> status *= -1;
                 }
-            // }
+            } else {
+                if (self.mx > switchX - switchp -> size && self.mx < switchX + switchp -> size && self.my > switchY - switchp -> size && self.my < switchY + switchp -> size) {
+                    switchp -> status = -1;
+                } else {
+                    switchp -> status = 0;
+                }
+            }
             if (switchp -> status > 0) {
                 if (*(switchp -> variable)) {
                     *(switchp -> variable) = 0;
@@ -1040,14 +1028,6 @@ void dropdownTick(int window) {
                                 dropdown -> index = selected;
                             }
                             *dropdown -> variable = dropdown -> index;
-                            // self.osc[window - 2].rightBound = self.data -> data[*dropdown -> variable].r -> length - 1;
-                            // if (self.osc[window - 2].rightBound < 0) {
-                            //     self.osc[window - 2].rightBound = 1;
-                            // }
-                            // self.osc[window - 2].leftBound = self.data -> data[*dropdown -> variable].r -> length - self.osc[window - 2].windowSizeSamples[0] - 1;
-                            // if (self.osc[window - 2].leftBound < 0) {
-                            //     self.osc[window - 2].leftBound = 1;
-                            // }
                         }
                         dropdown -> status = -2;
                     }
@@ -1096,19 +1076,17 @@ void buttonTick(int window) {
             }
             turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
             textGLWriteUnicode(button -> label, buttonX, buttonY, button -> size - 1, 50);
-            // if (self.windowRender -> data[self.windowRender -> length - 1].i == windowID) {
-                if (self.mouseDown) {
-                    if (button -> status < 0) {
-                        button -> status *= -1;
-                    }
-                } else {
-                    if (self.mx > buttonX - buttonWidth / 2 && self.mx < buttonX + buttonWidth / 2 && self.my > buttonY - buttonHeight / 2 && self.my < buttonY + buttonHeight / 2) {
-                        button -> status = -1;
-                    } else {
-                        button -> status = 0;
-                    }
+            if (self.mouseDown) {
+                if (button -> status < 0) {
+                    button -> status *= -1;
                 }
-            // }
+            } else {
+                if (self.mx > buttonX - buttonWidth / 2 && self.mx < buttonX + buttonWidth / 2 && self.my > buttonY - buttonHeight / 2 && self.my < buttonY + buttonHeight / 2) {
+                    button -> status = -1;
+                } else {
+                    button -> status = 0;
+                }
+            }
             *(button -> variable) = 0;
             if (button -> status > 0) {
                 *(button -> variable) = 1;
@@ -1382,13 +1360,8 @@ void setBoundsNoTrigger(int oscIndex, int stopped) {
 
 void renderOscData(int oscIndex) {
     /*
-    TODO - fix window size when selecting unused channel
-    fix trigger when switching from unused to a data source
-    left and right bounds are local
-    fix dial bleed (maybe make dial in seconds, capped to two decimals)
+    TODO
     */
-    // printf("%d %d\n", self.osc[oscIndex].leftBound[self.osc[oscIndex].selectedChannel], self.osc[oscIndex].rightBound[self.osc[oscIndex].selectedChannel]);
-    // printf("%d %d %d %d\n", self.osc[oscIndex].windowSizeSamples[0], self.osc[oscIndex].windowSizeSamples[1], self.osc[oscIndex].windowSizeSamples[2], self.osc[oscIndex].windowSizeSamples[3]);
     int windowIndex = ilog2(WINDOW_OSC) + oscIndex;
     for (int i = 0; i < 4; i++) {
         self.osc[oscIndex].windowSizeSamples[i] = round((self.osc[oscIndex].windowSizeMicroseconds / 1000000) * self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> data[0].d);
@@ -1448,8 +1421,6 @@ void renderOscData(int oscIndex) {
                     list_append(self.osc[oscIndex].trigger.lastIndex, (unitype) (dataLength - 2), 'i');
                 }
             }
-            // printf("triggerIndex %d\n", self.osc[oscIndex].trigger.index);
-            // list_print(self.osc[oscIndex].trigger.lastIndex);
         }
     } else {
         setBoundsNoTrigger(oscIndex, 1);
@@ -2020,14 +1991,12 @@ void renderInfoData() {
             for (int i = 0; i < self.windowRender -> length; i++) {
                 if (self.windowRender -> data[i].i >= WINDOW_OSC) {
                     int windowIndex = ilog2(self.windowRender -> data[i].i);
-                    // printf("updating %d dropdowns for window_osc %d\n", self.windows[windowIndex].dropdowns -> length, windowIndex);
                     for (int j = 0; j < self.windows[windowIndex].dropdowns -> length; j++) {
                         dropdownCalculateMax((dropdown_t *) self.windows[windowIndex].dropdowns -> data[j].p);
                     }
                 }
                 if (self.windowRender -> data[i].i == WINDOW_ORBIT) {
                     int windowIndex = ilog2(self.windowRender -> data[i].i);
-                    // printf("updating %d dropdowns for window_orbit %d\n", self.windows[windowIndex].dropdowns -> length, windowIndex);
                     for (int j = 0; j < self.windows[windowIndex].dropdowns -> length; j++) {
                         dropdownCalculateMax((dropdown_t *) self.windows[windowIndex].dropdowns -> data[j].p);
                     }
@@ -2208,12 +2177,12 @@ void utilLoop() {
         }
     }
     self.mw = turtleMouseWheel();
-    // if (turtleKeyPressed(GLFW_KEY_UP)) {
-    //     self.mw += 1;
-    // }
-    // if (turtleKeyPressed(GLFW_KEY_DOWN)) {
-    //     self.mw -= 1;
-    // }
+    if (turtleKeyPressed(GLFW_KEY_UP)) {
+        self.mw += 1;
+    }
+    if (turtleKeyPressed(GLFW_KEY_DOWN)) {
+        self.mw -= 1;
+    }
     turtleClear();
 }
 
@@ -2276,8 +2245,6 @@ int main(int argc, char *argv[]) {
     turtleBgColor(self.themeColors[self.theme + 0], self.themeColors[self.theme + 1], self.themeColors[self.theme + 2]);
 
     while (turtle.close == 0) { // main loop
-        // printf("%d %d %d\n", self.data -> data[1].r -> length, self.data -> data[2].r -> length, self.data -> data[3].r -> length);
-        // list_print(self.data);
         start = clock();
         if (self.commsEnabled == 0) {
             /* populate demo data */
@@ -2285,9 +2252,6 @@ int main(int argc, char *argv[]) {
             double sinValue2 = sin(tick / 3.37) * 25;
             double sinValue3 = sin(tick * 1.1) * 12.5;
             list_append(self.data -> data[1].r, (unitype) (sinValue1), 'd');
-            // list_append(self.data -> data[1].r, (unitype) (sinValue2), 'd');
-            // list_append(self.data -> data[2].r, (unitype) (sinValue3), 'd');
-            // list_append(self.data -> data[3].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
             list_append(self.data -> data[2].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 2) * 25), 'd');
             list_append(self.data -> data[2].r, (unitype) (sin((tick + 0.5) / 5.0 + M_PI / 3 * 2) * 25), 'd');
             list_append(self.data -> data[3].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 4) * 25), 'd');
