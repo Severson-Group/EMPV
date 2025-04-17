@@ -2168,7 +2168,7 @@ int main(int argc, char *argv[]) {
             // list_append(self.data -> data[2].r, (unitype) (sinValue3), 'd');
             // list_append(self.data -> data[3].r, (unitype) (sinValue1 + sinValue2 + sinValue3), 'd');
             list_append(self.data -> data[2].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 2) * 25), 'd');
-            list_append(self.data -> data[2].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 2) * 25), 'd');
+            list_append(self.data -> data[2].r, (unitype) (sin((tick + 0.5) / 5.0 + M_PI / 3 * 2) * 25), 'd');
             list_append(self.data -> data[3].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 4) * 25), 'd');
             list_append(self.data -> data[4].r, (unitype) (sin(tick / 5.0 + M_PI / 2) * 25), 'd');
         }
