@@ -605,11 +605,11 @@ void createNewOsc() {
     list_append(self.oscTitles, (unitype) self.windows[oscIndex].title, 's');
     self.windows[oscIndex].windowCoords[0] = -317;
     self.windows[oscIndex].windowCoords[1] = 0;
-    self.windows[oscIndex].windowCoords[2] = -2;
+    self.windows[oscIndex].windowCoords[2] = -13;
     self.windows[oscIndex].windowCoords[3] = 167;
     self.windows[oscIndex].windowTop = 15;
     self.windows[oscIndex].windowSide = 100;
-    self.windows[oscIndex].windowMinX = 60 + self.windows[oscIndex].windowSide;
+    self.windows[oscIndex].windowMinX = 100 + self.windows[oscIndex].windowSide;
     self.windows[oscIndex].windowMinY = 150 + self.windows[oscIndex].windowTop;
     self.windows[oscIndex].minimize = 0;
     self.windows[oscIndex].move = 0;
@@ -729,13 +729,13 @@ void init() {
     self.topFreq = 20;
     int freqIndex = ilog2(WINDOW_FREQ);
     strcpy(self.windows[freqIndex].title, "Frequency");
-    self.windows[freqIndex].windowCoords[0] = 2;
+    self.windows[freqIndex].windowCoords[0] = -10;
     self.windows[freqIndex].windowCoords[1] = 0;
-    self.windows[freqIndex].windowCoords[2] = 317;
+    self.windows[freqIndex].windowCoords[2] = 172;
     self.windows[freqIndex].windowCoords[3] = 167;
     self.windows[freqIndex].windowTop = 15;
     self.windows[freqIndex].windowSide = 50;
-    self.windows[freqIndex].windowMinX = 52 + self.windows[freqIndex].windowSide;
+    self.windows[freqIndex].windowMinX = 100 + self.windows[freqIndex].windowSide;
     self.windows[freqIndex].windowMinY = 120 + self.windows[freqIndex].windowTop;
     self.windows[freqIndex].minimize = 0;
     self.windows[freqIndex].move = 0;
@@ -767,11 +767,11 @@ void init() {
     strcpy(self.windows[orbitIndex].title, "Orbit");
     self.windows[orbitIndex].windowCoords[0] = -317;
     self.windows[orbitIndex].windowCoords[1] = -161;
-    self.windows[orbitIndex].windowCoords[2] = -2;
-    self.windows[orbitIndex].windowCoords[3] = -5;
+    self.windows[orbitIndex].windowCoords[2] = -81;
+    self.windows[orbitIndex].windowCoords[3] = -3;
     self.windows[orbitIndex].windowTop = 15;
     self.windows[orbitIndex].windowSide = 50;
-    self.windows[orbitIndex].windowMinX = 60 + self.windows[orbitIndex].windowSide;
+    self.windows[orbitIndex].windowMinX = 100 + self.windows[orbitIndex].windowSide;
     self.windows[orbitIndex].windowMinY = 120 + self.windows[orbitIndex].windowTop;
     self.windows[orbitIndex].minimize = 0;
     self.windows[orbitIndex].move = 0;
@@ -790,15 +790,15 @@ void init() {
     /* editor */
     int editorIndex = ilog2(WINDOW_EDITOR);
     strcpy(self.windows[editorIndex].title, "Editor");
-    self.windows[editorIndex].windowCoords[0] = 2;
+    self.windows[editorIndex].windowCoords[0] = 175;
     self.windows[editorIndex].windowCoords[1] = -161;
     self.windows[editorIndex].windowCoords[2] = 317;
-    self.windows[editorIndex].windowCoords[3] = -5;
+    self.windows[editorIndex].windowCoords[3] = 167;
     self.windows[editorIndex].windowTop = 15;
     self.windows[editorIndex].windowSide = 0;
-    self.windows[editorIndex].windowMinX = 60 + self.windows[editorIndex].windowSide;
+    self.windows[editorIndex].windowMinX = 100 + self.windows[editorIndex].windowSide;
     self.windows[editorIndex].windowMinY = 120 + self.windows[editorIndex].windowTop;
-    self.windows[editorIndex].minimize = 1;
+    self.windows[editorIndex].minimize = 0;
     self.windows[editorIndex].move = 0;
     self.windows[editorIndex].click = 0;
     self.windows[editorIndex].resize = 0;
@@ -811,10 +811,10 @@ void init() {
     self.infoAnimation = 0;
     int infoIndex = ilog2(WINDOW_INFO);
     strcpy(self.windows[infoIndex].title, "Info");
-    self.windows[infoIndex].windowCoords[0] = 2;
+    self.windows[infoIndex].windowCoords[0] = -77;
     self.windows[infoIndex].windowCoords[1] = -161;
-    self.windows[infoIndex].windowCoords[2] = 317;
-    self.windows[infoIndex].windowCoords[3] = -5;
+    self.windows[infoIndex].windowCoords[2] = 172;
+    self.windows[infoIndex].windowCoords[3] = -3;
     self.windows[infoIndex].windowTop = 15;
     self.windows[infoIndex].windowSide = 0;
     self.windows[infoIndex].windowMinX = 100 + self.windows[infoIndex].windowSide;
@@ -2181,6 +2181,14 @@ void utilLoop() {
     }
     if (turtleKeyPressed(GLFW_KEY_DOWN)) {
         self.mw -= 1;
+    }
+    if (turtleKeyPressed(GLFW_KEY_C)) {
+        for (int i = 0; i < self.windowRender -> length; i++) {
+            int windowIndex = ilog2(self.windowRender -> data[i].i);
+            window_t printdow = self.windows[windowIndex];
+            printf("%lf %lf %lf %lf\n", printdow.windowCoords[0], printdow.windowCoords[1], printdow.windowCoords[2], printdow.windowCoords[3]);
+        }
+        printf("\n\n\n");
     }
     turtleClear();
 }
