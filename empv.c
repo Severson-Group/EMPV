@@ -1738,8 +1738,8 @@ void renderFreqData() {
         turtlePenDown();
         turtleGoto(xcenter, self.windows[windowIndex].windowCoords[1] + 5);
         turtlePenUp();
-        tickMarks = round(self.freqZoom / 4) * 4;
-        culling = self.freqZoom;
+        tickMarks = round((self.freqRightBound - self.freqLeftBound) / 4) * 4;
+        culling = self.freqRightBound - self.freqLeftBound;
         while (culling > 60) {
             culling /= 4;
             tickMarks /= 4;
@@ -1767,7 +1767,7 @@ void renderFreqData() {
             if (self.my > self.windows[windowIndex].windowCoords[0] && self.my < self.windows[windowIndex].windowCoords[1] + 15) {
                 turtleTriangle(xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 2, xpos + 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, xpos - 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, 215, 215, 215, 0);
                 char tickValue[24];
-                sprintf(tickValue, "%d", (int) (self.freqZoom / tickMarks * mouseSample - self.freqZoom / 2));
+                sprintf(tickValue, "%d", (int) ((self.freqRightBound - self.freqLeftBound) / tickMarks * mouseSample - (self.freqRightBound - self.freqLeftBound) / 2));
                 turtlePenColor(215, 215, 215);
                 textGLWriteString(tickValue, xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 17, 8, 50);
             }

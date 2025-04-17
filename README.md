@@ -11,3 +11,4 @@ Simply run empv.exe to open the application
 - Add offset dials for oscilloscope and orbit
 - Colour the oscilloscope channels appropriately
 - Make frequency view multi-channel
+- There are more crashes than I'd like
