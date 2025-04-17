@@ -4,21 +4,6 @@ Features:
 - Frequency graph
 - Orbital plot
 - Editor
-
-Quick math
-A = 120 samples/s
-B = 240 samples/s
-
-B has 2 samples for every 1 sample from A
-
-B to A = B / A
-A to B = A / B
-
-We want to put them on a "common scale" of 1s
-
-1 / (samples/s) = seconds/sample
-
-
 */
 
 #include "include/ribbon.h"
@@ -1842,6 +1827,50 @@ void renderOrbitData() {
                 textGLWriteString(sampleValue, boxX2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 11, 8, 0);
             }
         }
+        turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[0] + 10, self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
+        turtlePenColor(0, 0, 0);
+        turtlePenSize(1);
+        double ycenter = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2;
+        turtleGoto(self.windows[windowIndex].windowCoords[0], ycenter);
+        turtlePenDown();
+        turtleGoto(self.windows[windowIndex].windowCoords[0] + 5, ycenter);
+        turtlePenUp();
+        int tickMarks = round(self.orbitYScale / 4) * 4;
+        double culling = self.orbitYScale;
+        while (culling > 60) {
+            culling /= 4;
+            tickMarks /= 4;
+        }
+        tickMarks = ceil(tickMarks / 4) * 4;
+        double yquantum = (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]) / tickMarks;
+        for (int i = 1; i < tickMarks; i++) {
+            double ypos = self.windows[windowIndex].windowCoords[1] + i * yquantum;
+            turtleGoto(self.windows[windowIndex].windowCoords[0], ypos);
+            turtlePenDown();
+            int tickLength = 2;
+            if (i % (tickMarks / 4) == 0) {
+                tickLength = 4;
+            }
+            turtleGoto(self.windows[windowIndex].windowCoords[0] + tickLength, ypos);
+            turtlePenUp();
+        }
+        // if (self.windowRender -> data[self.windowRender -> length - 1].i >= WINDOW_OSC) {
+            int mouseSample = round((self.my - self.windows[windowIndex].windowCoords[1]) / yquantum);
+            if (mouseSample > 0 && mouseSample < tickMarks) {
+                double ypos = self.windows[windowIndex].windowCoords[1] + mouseSample * yquantum;
+                int tickLength = 2;
+                if (mouseSample % (tickMarks / 4) == 0) {
+                    tickLength = 4;
+                }
+                if (self.mx > self.windows[windowIndex].windowCoords[0] && self.mx < self.windows[windowIndex].windowCoords[0] + 15) {
+                    turtleTriangle(self.windows[windowIndex].windowCoords[0] + tickLength + 2, ypos, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
+                    char tickValue[24];
+                    sprintf(tickValue, "%d", (int) (self.orbitYScale / tickMarks * mouseSample - self.orbitYScale / 2));
+                    turtlePenColor(215, 215, 215);
+                    textGLWriteString(tickValue, self.windows[windowIndex].windowCoords[0] + tickLength + 13, ypos, 8, 0);
+                }
+            }
+        // }
     }
 }
 
