@@ -455,7 +455,7 @@ void populateLoggedVariables() {
     delay_ms(100);
     list_clear(self.data);
     list_append(self.data, (unitype) list_init(), 'r'); // unused list
-    list_append(self.data -> data[0].r, (unitype) 120.0, 'r'); // dummy 120 samples/s
+    list_append(self.data -> data[0].r, (unitype) 120.0, 'd'); // dummy 120 samples/s
 
     list_clear(self.logVariables);
     list_clear(self.logSlots);
