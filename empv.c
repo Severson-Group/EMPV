@@ -155,6 +155,7 @@ typedef struct { // oscilloscope view
     double windowSizeMicroseconds; // size of window (in microseconds) - global per oscilloscope
     int windowSizeSamples[4]; // size of window (in samples) - local per channel
     int stop; // pause and unpause - global per oscilloscope
+    int above; // whether the current data point is above or below the trigger point
 } oscilloscope_t;
 
 typedef struct { // all the empv shared state is here
@@ -617,6 +618,7 @@ void createNewOsc() {
     self.osc[self.newOsc].dummyTopBound = 100;
     self.osc[self.newOsc].windowSizeMicroseconds = 1000000;
     self.osc[self.newOsc].stop = 0;
+    self.osc[self.newOsc].above = 0;
     int oscIndex = ilog2(WINDOW_OSC) + self.newOsc;
     sprintf(self.windows[oscIndex].title, "Oscilloscope %d", self.newOsc + 1);
     list_append(self.oscTitles, (unitype) self.windows[oscIndex].title, 's');
@@ -1442,13 +1444,19 @@ void renderOscData(int oscIndex) {
             if (self.osc[oscIndex].trigger.index == 0) {
                 setBoundsNoTrigger(oscIndex, 0);
             }
+            int oldAbove = self.osc[oscIndex].above;
+            if (self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 1].d >= self.osc[oscIndex].trigger.threshold) {
+                self.osc[oscIndex].above = 1;
+            } else {
+                self.osc[oscIndex].above = 0;
+            }
             if (self.osc[oscIndex].trigger.type == TRIGGER_RISING_EDGE) {
-                if (self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 2].d < self.osc[oscIndex].trigger.threshold && self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 1].d >= self.osc[oscIndex].trigger.threshold) {
+                if (oldAbove == 0 && self.osc[oscIndex].above == 1) {
                     list_append(self.osc[oscIndex].trigger.lastIndex, (unitype) (dataLength - 2), 'i');
                 }
             }
             if (self.osc[oscIndex].trigger.type == TRIGGER_FALLING_EDGE) {
-                if (self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 2].d > self.osc[oscIndex].trigger.threshold && self.data -> data[self.osc[oscIndex].dataIndex[self.osc[oscIndex].selectedChannel]].r -> data[dataLength - 1].d <= self.osc[oscIndex].trigger.threshold) {
+                if (oldAbove == 1 && self.osc[oscIndex].above == 0) {
                     list_append(self.osc[oscIndex].trigger.lastIndex, (unitype) (dataLength - 2), 'i');
                 }
             }
