@@ -1555,6 +1555,8 @@ void renderOscData(int oscIndex) {
 
 void renderFreqData() {
     int windowIndex = ilog2(WINDOW_FREQ);
+    int sideAxisWidth = 10;
+    int bottomAxisHeight = 10;
     /* linear windowing function over 10% of the sample */
     int dataLength = self.osc[self.freqOscIndex].rightBound[self.freqOscChannel] - self.osc[self.freqOscIndex].leftBound[self.freqOscChannel];
     int threshold = (dataLength) * 0.1;
@@ -1577,7 +1579,7 @@ void renderFreqData() {
     list_clear(self.freqData);
     list_clear(self.phaseData);
     fft_list_wrapper(self.windowData, self.freqData, self.phaseData);
-    double xquantum = (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0] - self.windows[windowIndex].windowSide) / ((self.windowData -> length - 2) / self.freqZoom) * 2;
+    double xquantum = (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowCoords[0] - self.windows[windowIndex].windowSide - sideAxisWidth) / ((self.windowData -> length - 2) / self.freqZoom) * 2;
     if (self.windows[windowIndex].minimize == 0) {
         /* render window background */
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
@@ -1596,35 +1598,35 @@ void renderFreqData() {
             if (magnitude < 0) {
                 magnitude *= -1;
             }
-            turtleGoto(self.windows[windowIndex].windowCoords[0] + (i - self.freqLeftBound) * xquantum, (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
+            turtleGoto(sideAxisWidth + self.windows[windowIndex].windowCoords[0] + (i - self.freqLeftBound) * xquantum, self.windows[windowIndex].windowCoords[1] + bottomAxisHeight + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
             turtlePenDown();
         }
         turtlePenUp();
         /* render phase data */
-        turtlePenColor(self.themeColors[self.theme + 36], self.themeColors[self.theme + 37], self.themeColors[self.theme + 38]);
-        if (self.phaseData -> length % 2) {
-            xquantum *= (self.phaseData -> length - 2.0) / (self.phaseData -> length - 1.0);
-        }
-        self.freqRightBound = 1 + self.freqLeftBound + (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]) / xquantum;
-        if (self.freqRightBound > self.phaseData -> length / 2 + self.phaseData -> length % 2) {
-            self.freqRightBound = self.phaseData -> length / 2 + self.phaseData -> length % 2;
-        }
-        for (int i = self.freqLeftBound; i < self.freqRightBound; i++) {
-            double magnitude = self.phaseData -> data[i].d;
-            turtleGoto(self.windows[windowIndex].windowCoords[0] + (i - self.freqLeftBound) * xquantum, (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
-            turtlePenDown();
-        }
-        turtlePenUp();
+        // turtlePenColor(self.themeColors[self.theme + 36], self.themeColors[self.theme + 37], self.themeColors[self.theme + 38]);
+        // if (self.phaseData -> length % 2) {
+        //     xquantum *= (self.phaseData -> length - 2.0) / (self.phaseData -> length - 1.0);
+        // }
+        // self.freqRightBound = 1 + self.freqLeftBound + (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]) / xquantum;
+        // if (self.freqRightBound > self.phaseData -> length / 2 + self.phaseData -> length % 2) {
+        //     self.freqRightBound = self.phaseData -> length / 2 + self.phaseData -> length % 2;
+        // }
+        // for (int i = self.freqLeftBound; i < self.freqRightBound; i++) {
+        //     double magnitude = self.phaseData -> data[i].d;
+        //     turtleGoto(self.windows[windowIndex].windowCoords[0] + (i - self.freqLeftBound) * xquantum, (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + ((magnitude - 0) / (self.topFreq - 0)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]));
+        //     turtlePenDown();
+        // }
+        // turtlePenUp();
 
         /* render mouse */
         if (self.mx > self.windows[windowIndex].windowCoords[0] && self.my > self.windows[windowIndex].windowCoords[1] && self.mx < self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide && self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) {
-            double sample = (self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum + self.freqLeftBound;
+            double sample = (self.mx - self.windows[windowIndex].windowCoords[0] - sideAxisWidth) / xquantum + self.freqLeftBound;
             if (self.osc[self.freqOscIndex].leftBound[self.freqOscChannel] + sample >= self.data -> data[self.osc[self.freqOscIndex].dataIndex[self.freqOscChannel]].r -> length) {
                 goto FREQ_SIDE_AXIS;
             }
             int roundedSample = round(sample);
-            double sampleX = self.windows[windowIndex].windowCoords[0] + (roundedSample - self.freqLeftBound) * xquantum;
-            double sampleY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + (fabs(self.freqData -> data[roundedSample].d) / (self.topFreq)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+            double sampleX = sideAxisWidth + self.windows[windowIndex].windowCoords[0] + (roundedSample - self.freqLeftBound) * xquantum;
+            double sampleY = bottomAxisHeight + (fabs(self.freqData -> data[roundedSample].d) / (self.topFreq)) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
             turtleRectangle(sampleX - 1, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop, sampleX + 1, self.windows[windowIndex].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
             turtleRectangle(self.windows[windowIndex].windowCoords[0], sampleY - 1, self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide, sampleY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
             turtlePenColor(215, 215, 215);
@@ -1660,7 +1662,7 @@ void renderFreqData() {
             textGLWriteString(sampleValue, boxX2, self.windows[windowIndex].windowCoords[3] - 26, 8, 0);
             /* scrolling */
             const double scaleFactor = 1.25;
-            double buckets = (self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum;
+            double buckets = (self.mx - self.windows[windowIndex].windowCoords[0] - sideAxisWidth) / xquantum;
             if (self.mw > 0) {
                 /* zoom in */
                 self.freqZoom *= scaleFactor;
@@ -1693,8 +1695,8 @@ void renderFreqData() {
         turtlePenDown();
         turtleGoto(self.windows[windowIndex].windowCoords[0] + 5, ycenter);
         turtlePenUp();
-        int tickMarks = round(self.orbitYScale / 4) * 4;
-        double culling = self.orbitYScale;
+        int tickMarks = round(self.topFreq / 4) * 4;
+        double culling = self.topFreq;
         while (culling > 60) {
             culling /= 4;
             tickMarks /= 4;
@@ -1722,7 +1724,7 @@ void renderFreqData() {
             if (self.mx > self.windows[windowIndex].windowCoords[0] && self.mx < self.windows[windowIndex].windowCoords[0] + 15) {
                 turtleTriangle(self.windows[windowIndex].windowCoords[0] + tickLength + 2, ypos, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
                 char tickValue[24];
-                sprintf(tickValue, "%d", (int) (self.orbitYScale / tickMarks * mouseSample - self.orbitYScale / 2));
+                sprintf(tickValue, "%d", (int) (self.topFreq / tickMarks * mouseSample - self.topFreq / 2));
                 turtlePenColor(215, 215, 215);
                 textGLWriteString(tickValue, self.windows[windowIndex].windowCoords[0] + tickLength + 13, ypos, 8, 0);
             }
@@ -1736,8 +1738,8 @@ void renderFreqData() {
         turtlePenDown();
         turtleGoto(xcenter, self.windows[windowIndex].windowCoords[1] + 5);
         turtlePenUp();
-        tickMarks = round(self.orbitXScale / 4) * 4;
-        culling = self.orbitXScale;
+        tickMarks = round(self.freqZoom / 4) * 4;
+        culling = self.freqZoom;
         while (culling > 60) {
             culling /= 4;
             tickMarks /= 4;
@@ -1765,7 +1767,7 @@ void renderFreqData() {
             if (self.my > self.windows[windowIndex].windowCoords[0] && self.my < self.windows[windowIndex].windowCoords[1] + 15) {
                 turtleTriangle(xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 2, xpos + 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, xpos - 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, 215, 215, 215, 0);
                 char tickValue[24];
-                sprintf(tickValue, "%d", (int) (self.orbitXScale / tickMarks * mouseSample - self.orbitXScale / 2));
+                sprintf(tickValue, "%d", (int) (self.freqZoom / tickMarks * mouseSample - self.freqZoom / 2));
                 turtlePenColor(215, 215, 215);
                 textGLWriteString(tickValue, xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 17, 8, 50);
             }
