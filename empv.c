@@ -72,6 +72,7 @@ typedef struct { // switch
 typedef struct {
     char inUse;
     int selectIndex;
+    double color[3];
 } dropdown_metadata_t;
 
 typedef struct { // dropdown 
@@ -632,12 +633,24 @@ void createNewOsc() {
     list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit("Trigger", triggerOptions, &self.osc[self.newOsc].trigger.type, WINDOW_OSC * pow2(self.newOsc), -70, -100 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
     metadata.inUse = 1;
     metadata.selectIndex = 3;
+    metadata.color[0] = self.themeColors[self.theme + 33];
+    metadata.color[1] = self.themeColors[self.theme + 34];
+    metadata.color[2] = self.themeColors[self.theme + 35];
     list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, self.logVariables, &self.osc[self.newOsc].dataIndex[3], WINDOW_OSC * pow2(self.newOsc), -70, -70 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
     metadata.selectIndex = 2;
+    metadata.color[0] = self.themeColors[self.theme + 30];
+    metadata.color[1] = self.themeColors[self.theme + 31];
+    metadata.color[2] = self.themeColors[self.theme + 32];
     list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, self.logVariables, &self.osc[self.newOsc].dataIndex[2], WINDOW_OSC * pow2(self.newOsc), -70, -50 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
     metadata.selectIndex = 1;
+    metadata.color[0] = self.themeColors[self.theme + 27];
+    metadata.color[1] = self.themeColors[self.theme + 28];
+    metadata.color[2] = self.themeColors[self.theme + 29];
     list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, self.logVariables, &self.osc[self.newOsc].dataIndex[1], WINDOW_OSC * pow2(self.newOsc), -70, -30 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
     metadata.selectIndex = 0;
+    metadata.color[0] = self.themeColors[self.theme + 24];
+    metadata.color[1] = self.themeColors[self.theme + 25];
+    metadata.color[2] = self.themeColors[self.theme + 26];
     list_append(self.windows[oscIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, self.logVariables, &self.osc[self.newOsc].dataIndex[0], WINDOW_OSC * pow2(self.newOsc), -70, -10 - self.windows[oscIndex].windowTop, 8, metadata), 'p');
     self.windows[oscIndex].dropdownLogicIndex = -1;
     list_append(self.windowRender, (unitype) (WINDOW_OSC * pow2(self.newOsc)), 'i');
@@ -669,18 +682,18 @@ void init() {
         255, 0, 0, // data color (channel 4)
         255, 0, 0, // phase data color
         /* dark theme */
-        60, 60, 60, // background color
-        10, 10, 10, // window color
-        19, 236, 48, // data color (default)
-        200, 200, 200, // text color
-        80, 80, 80, // window background color
-        0, 255, 0, // switch toggled on color
-        164, 28, 9, // switch toggled off color
-        30, 30, 30, // sidebar and bottom bar color
-        19, 236, 48, // data color (channel 1)
-        74, 198, 174, // data color (channel 2)
-        200, 200, 200, // data color (channel 3)
-        145, 207, 214, // data color (channel 4)
+        60, 60, 60, // background color (0)
+        10, 10, 10, // window color (3)
+        19, 236, 48, // data color (default) (6)
+        200, 200, 200, // text color (9)
+        80, 80, 80, // window background color (12)
+        0, 255, 0, // switch toggled on color (15)
+        164, 28, 9, // switch toggled off color (18)
+        30, 30, 30, // sidebar and bottom bar color (21)
+        19, 236, 48, // data color (channel 1) (24)
+        74, 198, 174, // data color (channel 2) (25)
+        200, 200, 200, // data color (channel 3) (26)
+        145, 207, 214, // data color (channel 4) (27)
         255, 0, 0, // phase data color
     };
     memcpy(self.themeColors, themeCopy, sizeof(themeCopy));
@@ -971,7 +984,7 @@ void dropdownTick(int window) {
             if (dropdown -> metadata.inUse) {
                 int oscIndex = window - ilog2(WINDOW_OSC);
                 if (self.osc[oscIndex].selectedChannel == dropdown -> metadata.selectIndex) {
-                    turtleRectangle(dropdownX - dropdown -> size - xfactor - 1, dropdownY - dropdown -> size * 0.7 - 1, dropdownX + dropdown -> size + 10 + 1, dropdownY + dropdown -> size * 0.7 + 1, self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11], 0);
+                    turtleRectangle(dropdownX - dropdown -> size - xfactor - 1, dropdownY - dropdown -> size * 0.7 - 1, dropdownX + dropdown -> size + 10 + 1, dropdownY + dropdown -> size * 0.7 + 1, dropdown -> metadata.color[0], dropdown -> metadata.color[1], dropdown -> metadata.color[2], 0);
                 }
             }
             logicIndex = self.windows[window].dropdownLogicIndex;
@@ -1049,7 +1062,11 @@ void dropdownTick(int window) {
                 logicIndex = i;
             }
             self.windows[window].dropdownLogicIndex = logicIndex;
-            turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+            if (dropdown -> metadata.inUse) {
+                turtlePenColor(dropdown -> metadata.color[0], dropdown -> metadata.color[1], dropdown -> metadata.color[2]);
+            } else {
+                turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+            }
             textGLWriteUnicode(dropdown -> options -> data[dropdown -> index].s, dropdownX, self.windows[window].windowCoords[1] + (self.windows[window].windowCoords[3] - self.windows[window].windowCoords[1]) + dropdown -> position[1], dropdown -> size - 1, 100);
             if (dropdown -> status >= 1) {
                 turtleTriangle(dropdownX + 11, dropdownY + 4, dropdownX + 11, dropdownY - 4, dropdownX + 5, dropdownY, self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11], 0);
@@ -1767,7 +1784,7 @@ void renderFreqData() {
             if (self.my > self.windows[windowIndex].windowCoords[0] && self.my < self.windows[windowIndex].windowCoords[1] + 15) {
                 turtleTriangle(xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 2, xpos + 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, xpos - 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, 215, 215, 215, 0);
                 char tickValue[24];
-                sprintf(tickValue, "%d", (int) ((self.freqRightBound - self.freqLeftBound) / tickMarks * mouseSample));
+                sprintf(tickValue, "%dHz", (int) ((self.freqRightBound - self.freqLeftBound) / tickMarks * mouseSample));
                 turtlePenColor(215, 215, 215);
                 textGLWriteString(tickValue, xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 17, 8, 50);
             }
