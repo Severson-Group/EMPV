@@ -691,9 +691,9 @@ void init() {
         164, 28, 9, // switch toggled off color (18)
         30, 30, 30, // sidebar and bottom bar color (21)
         19, 236, 48, // data color (channel 1) (24)
-        74, 198, 174, // data color (channel 2) (25)
+        0, 221, 255, // data color (channel 2) (25)
         200, 200, 200, // data color (channel 3) (26)
-        145, 207, 214, // data color (channel 4) (27)
+        232, 15, 136, // data color (channel 4) (27)
         255, 0, 0, // phase data color
     };
     memcpy(self.themeColors, themeCopy, sizeof(themeCopy));
@@ -1602,7 +1602,7 @@ void renderFreqData() {
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         turtlePenSize(1);
         /* render frequency data */
-        turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
+        turtlePenColor(self.themeColors[self.theme + 24 + self.freqOscChannel * 3], self.themeColors[self.theme + 25 + self.freqOscChannel * 3], self.themeColors[self.theme + 26 + self.freqOscChannel * 3]);
         if (self.freqData -> length % 2) {
             xquantum *= (self.freqData -> length - 2.0) / (self.freqData -> length - 1.0);
         }
@@ -1750,7 +1750,7 @@ void renderFreqData() {
         turtleRectangle(self.windows[windowIndex].windowCoords[0] + 10, self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide, self.windows[windowIndex].windowCoords[1] + 10, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
         turtlePenColor(0, 0, 0);
         turtlePenSize(1);
-        double xcenter = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - sideAxisWidth) / 2;
+        double xcenter = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide + sideAxisWidth) / 2;
         turtleGoto(xcenter, self.windows[windowIndex].windowCoords[1]);
         turtlePenDown();
         turtleGoto(xcenter, self.windows[windowIndex].windowCoords[1] + 5);
@@ -1774,9 +1774,9 @@ void renderFreqData() {
             turtleGoto(xpos, self.windows[windowIndex].windowCoords[1] + tickLength);
             turtlePenUp();
         }
-        mouseSample = round((self.mx - self.windows[windowIndex].windowCoords[0]) / xquantum);
+        mouseSample = round((self.mx - sideAxisWidth - self.windows[windowIndex].windowCoords[0]) / xquantum);
         if (mouseSample > 0 && mouseSample < tickMarks) {
-            double xpos = self.windows[windowIndex].windowCoords[0] + mouseSample * xquantum;
+            double xpos = self.windows[windowIndex].windowCoords[0] + sideAxisWidth + mouseSample * xquantum;
             int tickLength = 2;
             if (mouseSample % (tickMarks / 4) == 0) {
                 tickLength = 4;
