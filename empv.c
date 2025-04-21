@@ -495,12 +495,12 @@ void populateUsedSockets() {
             list_append(toRemove, self.oldUsedVariableIndices -> data[i], 'i');
         }
     }
-    printf("toAdd: ");
-    list_print(toAdd);
-    printf("toRemove: ");
-    list_print(toRemove);
-    printf("usedVariablesIndices: ");
-    list_print(self.usedVariableIndices);
+    // printf("toAdd: ");
+    // list_print(toAdd);
+    // printf("toRemove: ");
+    // list_print(toRemove);
+    // printf("usedVariablesIndices: ");
+    // list_print(self.usedVariableIndices);
 
     if (self.commsEnabled == 1) {
         /* open a new logging socket for each used logged variable */
@@ -512,15 +512,19 @@ void populateUsedSockets() {
                     win32tcpReceive(sptr, receiveBuffer, 1);
                     unsigned char amdc_log_id[2] = {56, 78};
                     win32tcpSend(sptr, amdc_log_id, 2);
-                    printf("Successfully created AMDC log socket with id %d\n", *receiveBuffer);
+                    printf("Successfully opened AMDC log socket with id %d\n", *receiveBuffer);
                     int sID = *receiveBuffer;
                     ((logVariable_t *) self.logVariables -> data[i].p) -> socketPtr = sptr;
                     ((logVariable_t *) self.logVariables -> data[i].p) -> socketID = sID;
                 }
             }
             if (list_count(toRemove, (unitype) i, 'i') > 0) {
-                ((logVariable_t *) self.logVariables -> data[i].p) -> socketPtr = NULL;
+                int savedSocketID = ((logVariable_t *) self.logVariables -> data[i].p) -> socketID;
                 ((logVariable_t *) self.logVariables -> data[i].p) -> socketID = -1;
+                delay_ms(10); // allow thread function to exit
+                closesocket(*(((logVariable_t *) self.logVariables -> data[i].p) -> socketPtr));
+                ((logVariable_t *) self.logVariables -> data[i].p) -> socketPtr = NULL;
+                printf("Successfully closed AMDC log socket with id %d\n", savedSocketID);
             }    
         }
         int threadArg[self.logVariables -> length];
@@ -530,13 +534,13 @@ void populateUsedSockets() {
                 pthread_create(&((logVariable_t *) self.logVariables -> data[i].p) -> thread, NULL, commsThreadFunction, &threadArg[i]);
             }
         }
-        /* clear all streams */
-        for (int i = 0; i < self.maxSlots; i++) {
-            char command[128];
-            sprintf(command, "log stream stop %d %d", i, ((logVariable_t *) self.logVariables -> data[i + 1].p) -> socketID);
-            printf("%s\n", command);
-            commsCommand(command);
-        }
+        /* clear all streams - FIXME */
+        // for (int i = 0; i < self.maxSlots; i++) {
+        //     char command[128];
+        //     sprintf(command, "log stream stop %d %d", i, ((logVariable_t *) self.logVariables -> data[i + 1].p) -> socketID);
+        //     printf("%s\n", command);
+        //     commsCommand(command);
+        // }
         /* start stream for logged variables */
         for (int i = 1; i < self.logVariables -> length; i++) {
             if (list_count(toAdd, (unitype) i, 'i') > 0) {
@@ -624,7 +628,9 @@ void populateLoggedVariables() {
                     }
                 }
                 logVariable_t *newVariable = variableInit(testString + 8, slotNum, NULL, -1, -1);
+                list_append(self.logVariables, (unitype) (void *) newVariable, 'p');
                 list_append(self.data, (unitype) list_init(), 'r');
+                printf("identified logging variable: %s\n", testString + 8);
                 // list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120.0, 'd'); // set samples/s
                 break;
             case 4: // Type: <type>
@@ -2092,7 +2098,7 @@ void renderInfoData() {
                 win32tcpReceive(self.cmdSocket, receiveBuffer, 1);
                 unsigned char amdc_cmd_id[2] = {12, 34};
                 win32tcpSend(self.cmdSocket, amdc_cmd_id, 2);
-                printf("Successfully created AMDC cmd socket with id %d\n", *receiveBuffer);
+                printf("Successfully opened AMDC cmd socket with id %d\n", *receiveBuffer);
                 self.cmdSocketID = *receiveBuffer;
             }
             populateLoggedVariables();
@@ -2346,7 +2352,7 @@ int main(int argc, char *argv[]) {
             win32tcpReceive(self.cmdSocket, receiveBuffer, 1);
             unsigned char amdc_cmd_id[2] = {12, 34};
             win32tcpSend(self.cmdSocket, amdc_cmd_id, 2);
-            printf("Successfully created AMDC cmd socket with id %d\n", *receiveBuffer);
+            printf("Successfully opened AMDC cmd socket with id %d\n", *receiveBuffer);
             self.cmdSocketID = *receiveBuffer;
         }
         self.commsEnabled = 1;
