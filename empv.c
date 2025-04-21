@@ -14,8 +14,8 @@ Features:
 #include <time.h>
 #include <pthread.h>
 
-#define TCP_RECEIVE_BUFFER_LENGTH 2048
-#define MAX_LOGGING_SOCKETS       32
+#define TCP_RECEIVE_BUFFER_LENGTH        2048
+#define MAX_SIMULTANEOUS_LOGGING_SOCKETS 4   // AMDC bug restricts concurrent streaming logging sockets to 4
 
 #define DIAL_LINEAR     0
 #define DIAL_LOG        1
@@ -31,6 +31,8 @@ Features:
 #define TRIGGER_TIMEOUT   150
 #define PHASE_THRESHOLD   0.5
 #define ORBIT_DIST_THRESH 2500
+
+#define NUMBER_OF_OSC 4
 
 void delay_ms(int delay) {
     clock_t start;
@@ -145,15 +147,15 @@ typedef struct { // oscilloscope view
 } oscilloscope_t;
 
 typedef struct {
-    char name[128];
-    int slot;
-    SOCKET *socketPtr;
-    int socketID;
+    char name[128]; // name of variable
+    int slot; // Slot # within AMDC (e.g. Slot 0: LOG_amdc_channel_1), -1 when not in use
+    SOCKET *socketPtr; // pointer to SOCKET used to stream data for this variable, NULL when not in use
+    int socketID; // ID of socket on AMDC (AMDC gives us this when the socket is created), -1 when not in use
+    pthread_t thread; // data logging thread for this variable, -1 when not in use
 } logVariable_t;
 
 typedef struct { // all the empv shared state is here
     /* comms */
-    pthread_t commsThread[MAX_LOGGING_SOCKETS];
     int threadCloseSignal;
     char commsEnabled;
     SOCKET *cmdSocket;
@@ -163,6 +165,8 @@ typedef struct { // all the empv shared state is here
     /* general */
         list_t *data; // a list of lists of all data collected through ethernet (first element is samples/s)
         list_t *logVariables; // a list of variables logged on the AMDC (logVariable_t)
+        list_t *usedVariableIndices;
+        list_t *oldUsedVariableIndices;
         list_t *windowRender; // which order to render windows in
         window_t windows[NUM_WINDOWS]; // window variables
         /* mouse variables */
@@ -181,7 +185,7 @@ typedef struct { // all the empv shared state is here
         double themeColors[90];
     /* oscilloscope view */
         list_t *oscTitles; // list of oscilloscope titles
-        oscilloscope_t osc[4]; // up to 4 oscilloscopes
+        oscilloscope_t osc[NUMBER_OF_OSC]; // up to four oscilloscopes
         int newOsc;
     /* frequency view */
         list_t *windowData; // segment of normal data through windowing function
@@ -297,7 +301,7 @@ button_t *buttonInit(char *label, int *variable, int window, double xOffset, dou
     return button;
 }
 
-logVariable_t *variableInit(char *name, int slot, SOCKET *socketPtr, int socketID) {
+logVariable_t *variableInit(char *name, int slot, SOCKET *socketPtr, int socketID, pthread_t thread) {
     logVariable_t *variable = malloc(sizeof(logVariable_t));
     if (name == NULL) {
         memcpy(variable -> name, "", strlen("") + 1);
@@ -307,6 +311,7 @@ logVariable_t *variableInit(char *name, int slot, SOCKET *socketPtr, int socketI
     variable -> slot = slot;
     variable -> socketPtr = socketPtr;
     variable -> socketID = socketID;
+    variable -> thread = thread;
     return variable;
 }
 
@@ -435,11 +440,11 @@ void commsGetData(int logSlotIndex) {
 
 void *commsThreadFunction(void *arg) {
     int index = *(int *) arg;
-    int *slot = &(((logVariable_t *) self.logVariables -> data[index].p) -> slot);
+    int *socketID = &(((logVariable_t *) self.logVariables -> data[index].p) -> socketID);
     /* populate real data */
     while (1) {
         if (self.commsEnabled == 1) {
-            if (*slot != -1) {
+            if (*socketID != -1) {
                 commsGetData(index);
             }
         }
@@ -448,10 +453,109 @@ void *commsThreadFunction(void *arg) {
         }
     }
     return NULL;
-} 
+}
+
+void gatherUsedSockets() {
+    /* gather all used sockets */
+    list_clear(self.usedVariableIndices);
+    list_append(self.usedVariableIndices, (unitype) self.orbitDataIndex[0], 'i');
+    list_append(self.usedVariableIndices, (unitype) self.orbitDataIndex[1], 'i');
+    for (int i = 0; i < NUMBER_OF_OSC; i++) {
+        for (int j = 0; j < 4; j++) {
+            int usedChannel = self.osc[i].dataIndex[j];
+            if (list_count(self.usedVariableIndices, (unitype) usedChannel, 'i') == 0) {
+                list_append(self.usedVariableIndices, (unitype) usedChannel, 'i');
+            }
+        }
+    }
+    int indexOfZero = list_find(self.usedVariableIndices, (unitype) 0, 'i');
+    while (indexOfZero != -1) {
+        list_delete(self.usedVariableIndices, indexOfZero);
+        indexOfZero = list_find(self.usedVariableIndices, (unitype) 0, 'i');
+    }
+    if (self.usedVariableIndices -> length > MAX_SIMULTANEOUS_LOGGING_SOCKETS) {
+        printf("warning - only %d logging sockets allowed concurrently. You are requesting %d simultaneous sources\n", MAX_SIMULTANEOUS_LOGGING_SOCKETS, self.usedVariableIndices -> length);
+        while (self.usedVariableIndices -> length > MAX_SIMULTANEOUS_LOGGING_SOCKETS) {
+            list_pop(self.usedVariableIndices);
+        }
+    }
+}
+
+void populateUsedSockets() {
+    gatherUsedSockets();
+    list_t *toAdd = list_init();
+    list_t *toRemove = list_init();
+    for (int i = 0; i < self.usedVariableIndices -> length; i++) {
+        if (list_remove(self.oldUsedVariableIndices, self.usedVariableIndices -> data[i], 'i') == -1) {
+            list_append(toAdd, self.usedVariableIndices -> data[i], 'i');
+        }
+    }
+    for (int i = 0; i < self.oldUsedVariableIndices -> length; i++) {
+        if (list_count(self.usedVariableIndices, self.oldUsedVariableIndices -> data[i], 'i') == 0) {
+            list_append(toRemove, self.oldUsedVariableIndices -> data[i], 'i');
+        }
+    }
+    printf("toAdd: ");
+    list_print(toAdd);
+    printf("toRemove: ");
+    list_print(toRemove);
+    printf("usedVariablesIndices: ");
+    list_print(self.usedVariableIndices);
+
+    if (self.commsEnabled == 1) {
+        /* open a new logging socket for each used logged variable */
+        for (int i = 1; i < self.logVariables -> length; i++) {
+            if (list_count(toAdd, (unitype) i, 'i') > 0) {
+                SOCKET *sptr = win32tcpCreateSocket();
+                if (sptr != NULL) {
+                    unsigned char receiveBuffer[10] = {0};
+                    win32tcpReceive(sptr, receiveBuffer, 1);
+                    unsigned char amdc_log_id[2] = {56, 78};
+                    win32tcpSend(sptr, amdc_log_id, 2);
+                    printf("Successfully created AMDC log socket with id %d\n", *receiveBuffer);
+                    int sID = *receiveBuffer;
+                    ((logVariable_t *) self.logVariables -> data[i].p) -> socketPtr = sptr;
+                    ((logVariable_t *) self.logVariables -> data[i].p) -> socketID = sID;
+                }
+            }
+            if (list_count(toRemove, (unitype) i, 'i') > 0) {
+                ((logVariable_t *) self.logVariables -> data[i].p) -> socketPtr = NULL;
+                ((logVariable_t *) self.logVariables -> data[i].p) -> socketID = -1;
+            }    
+        }
+        int threadArg[self.logVariables -> length];
+        for (int i = 1; i < self.logVariables -> length; i++) {
+            if (list_count(toAdd, (unitype) i, 'i') > 0) {
+                threadArg[i] = i;
+                pthread_create(&((logVariable_t *) self.logVariables -> data[i].p) -> thread, NULL, commsThreadFunction, &threadArg[i]);
+            }
+        }
+        /* clear all streams */
+        for (int i = 0; i < self.maxSlots; i++) {
+            char command[128];
+            sprintf(command, "log stream stop %d %d", i, ((logVariable_t *) self.logVariables -> data[i + 1].p) -> socketID);
+            printf("%s\n", command);
+            commsCommand(command);
+        }
+        /* start stream for logged variables */
+        for (int i = 1; i < self.logVariables -> length; i++) {
+            if (list_count(toAdd, (unitype) i, 'i') > 0) {
+                logVariable_t *variable = self.logVariables -> data[i].p;
+                if (variable -> slot != -1) {
+                    char command[128];
+                    sprintf(command, "log stream start %d %d", variable -> slot, variable -> socketID);
+                    commsCommand(command);
+                }
+            }
+        }
+    }
+    list_free(toAdd);
+    list_free(toRemove);
+    list_copy(self.usedVariableIndices, self.oldUsedVariableIndices);
+}
 
 void populateLoggedVariables() {
-    self.threadCloseSignal = 1;
+    self.threadCloseSignal = 1; // destroy all existing threads
     delay_ms(100);
     list_clear(self.data);
     list_append(self.data, (unitype) list_init(), 'r'); // unused list
@@ -493,7 +597,7 @@ void populateLoggedVariables() {
         list_append(self.data, (unitype) list_init(), 'r');
         list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120.0, 'd'); // set samples/s
 
-        logVariable_t *demoVariable4 = variableInit("Demo4", -1, NULL, -1);
+        logVariable_t *demoVariable4 = variableInit("Demo4", -1, NULL, -1, -1);
         list_append(self.logVariables, (unitype) (void *) demoVariable4, 'p');
         list_append(self.data, (unitype) list_init(), 'r');
         list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120.0, 'd'); // set samples/s
@@ -519,7 +623,7 @@ void populateLoggedVariables() {
                         break;
                     }
                 }
-                logVariable_t *newVariable = variableInit(testString + 8, slotNum, NULL, -1);
+                logVariable_t *newVariable = variableInit(testString + 8, slotNum, NULL, -1, -1);
                 list_append(self.data, (unitype) list_init(), 'r');
                 // list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120.0, 'd'); // set samples/s
                 break;
@@ -554,46 +658,9 @@ void populateLoggedVariables() {
         }
     }
     printf("Max Logging Slots: %d\n", self.maxSlots);
-    self.threadCloseSignal = 0;
+    self.threadCloseSignal = 0; // enable threads
     /* populate sockets */
-    int populatedSlots = self.logVariables -> length - 1; // subtract unused slot
-    if (self.commsEnabled == 1) {
-        /* open a new logging socket for each logged variable */
-        for (int i = 0; i < populatedSlots; i++) {
-            SOCKET *sptr = win32tcpCreateSocket();
-            if (sptr != NULL) {
-                unsigned char receiveBuffer[10] = {0};
-                win32tcpReceive(sptr, receiveBuffer, 1);
-                unsigned char amdc_log_id[2] = {56, 78};
-                win32tcpSend(sptr, amdc_log_id, 2);
-                printf("Successfully created AMDC log socket with id %d\n", *receiveBuffer);
-                int sID = *receiveBuffer;
-                ((logVariable_t *) self.logVariables -> data[i + 1].p) -> socketPtr = sptr;
-                ((logVariable_t *) self.logVariables -> data[i + 1].p) -> socketID = sID;
-            }
-        }
-        int threadArg[populatedSlots];
-        for (int i = 0; i < populatedSlots; i++) {
-            threadArg[i] = i + 1;
-            pthread_create(&self.commsThread[i], NULL, commsThreadFunction, &threadArg[i]);
-        }
-        /* clear all streams */
-        for (int i = 0; i < self.maxSlots; i++) {
-            char command[128];
-            sprintf(command, "log stream stop %d %d", i, ((logVariable_t *) self.logVariables -> data[i + 1].p) -> socketID);
-            printf("%s\n", command);
-            commsCommand(command);
-        }
-        /* start stream for logged variables */
-        for (int i = 0; i < populatedSlots; i++) {
-            logVariable_t *variable = self.logVariables -> data[i + 1].p;
-            if (variable -> slot != -1) {
-                char command[128];
-                sprintf(command, "log stream start %d %d", variable -> slot, variable -> socketID);
-                commsCommand(command);
-            }
-        }
-    }
+    populateUsedSockets();
 }
 
 void createNewOsc() {
@@ -679,6 +746,7 @@ void createNewOsc() {
     self.windows[oscIndex].dropdownLogicIndex = -1;
     list_append(self.windowRender, (unitype) (WINDOW_OSC * pow2(self.newOsc)), 'i');
     self.newOsc++;
+    populateUsedSockets();
 }
 
 /* initialises the empv variabes (shared state) */
@@ -732,7 +800,9 @@ void init() {
     }
     /* data */
     self.logVariables = list_init();
-    logVariable_t *dummyVariable = variableInit("Unused", -1, NULL, -1);
+    self.usedVariableIndices = list_init();
+    self.oldUsedVariableIndices = list_init();
+    logVariable_t *dummyVariable = variableInit("Unused", -1, NULL, -1, -1);
     list_append(self.logVariables, (unitype) (void *) dummyVariable, 'p');
     self.data = list_init();
     populateLoggedVariables(); // gather logged variables
@@ -999,7 +1069,7 @@ void dropdownTick(int window) {
                 self.windows[window].windowSide = xfactor - dropdown -> position[0] + 10;
             }
             double itemHeight = (dropdown -> size * 1.5);
-            /* extra: oscillator select channel */
+            /* special: oscillator select channel */
             if (dropdown -> metadata.inUse) {
                 int oscIndex = window - ilog2(WINDOW_OSC);
                 if (self.osc[oscIndex].selectedChannel == dropdown -> metadata.selectIndex) {
@@ -1029,6 +1099,7 @@ void dropdownTick(int window) {
                 if (dropdown -> status == -1) {
                     if (i > logicIndex && self.mouseDown) {
                         dropdown -> status = 1;
+                        /* special: set selectedChannel if this is an oscilloscope */
                         if (dropdown -> metadata.inUse) {
                             int oscIndex = window - ilog2(WINDOW_OSC);
                             self.osc[oscIndex].selectedChannel = dropdown -> metadata.selectIndex;
@@ -1048,6 +1119,7 @@ void dropdownTick(int window) {
                     }
                 }
             }
+
             if (dropdown -> status == 2 || dropdown -> status == 1) {
                 if (self.mx > dropdownX - dropdown -> size - dropdown -> maxXfactor && self.mx < dropdownX + dropdown -> size + 10 && self.my > dropdownY - dropdown -> size * 0.7 - (dropdown -> options -> length - 1) * itemHeight && self.my < dropdownY + dropdown -> size * 0.7) {
                     int selected = round((dropdownY - self.my) / itemHeight);
@@ -1062,6 +1134,10 @@ void dropdownTick(int window) {
                             *dropdown -> variable = dropdown -> index;
                         }
                         dropdown -> status = -2;
+                        /* special: set usedVariableIndices if this is an oscilloscope or orbit plot */
+                        if (dropdown -> metadata.inUse || dropdown -> variable == &self.orbitDataIndex[0] || dropdown -> variable == &self.orbitDataIndex[1]) {
+                            populateUsedSockets();
+                        }
                     }
                 } else {
                     if (self.mouseDown) {
@@ -1395,9 +1471,6 @@ void setBoundsNoTrigger(int oscIndex, int stopped) {
 }
 
 void renderOscData(int oscIndex) {
-    /*
-    TODO
-    */
     int windowIndex = ilog2(WINDOW_OSC) + oscIndex;
     for (int i = 0; i < 4; i++) {
         self.osc[oscIndex].windowSizeSamples[i] = round((self.osc[oscIndex].windowSizeMicroseconds / 1000000) * self.data -> data[self.osc[oscIndex].dataIndex[i]].r -> data[0].d);
@@ -2006,7 +2079,7 @@ void renderInfoData() {
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         /* refresh button */
         if (self.infoRefresh) {
-            if (self.commsEnabled) {
+            if (self.commsEnabled == 1) {
                 /* close all existing logging sockets */
                 for (int i = 1; i < self.logVariables -> length; i++) {
                     logVariable_t *variable = self.logVariables -> data[i].p;
