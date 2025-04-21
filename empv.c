@@ -556,12 +556,12 @@ void populateLoggedVariables() {
             pthread_create(&self.commsThread[i], NULL, commsThreadFunction, &threadArg[i]);
         }
         /* clear all streams */
-        // for (int i = 0; i < self.maxSlots; i++) {
-        //     char command[128];
-        //     sprintf(command, "log stream stop %d %d", i, self.logSocketIDs -> data[i].i);
-        //     printf("%s\n", command);
-        //     commsCommand(command);
-        // }
+        for (int i = 0; i < self.maxSlots; i++) {
+            char command[128];
+            sprintf(command, "log stream stop %d %d", i, self.logSocketIDs -> data[i].i);
+            printf("%s\n", command);
+            commsCommand(command);
+        }
         /* start stream for logged variables */
         for (int i = 0; i < populatedSlots; i++) {
             if (self.logSlots -> data[i + 1].i != -1) {
