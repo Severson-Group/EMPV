@@ -14,6 +14,8 @@ Features:
 #include <time.h>
 #include <pthread.h>
 
+// #define DEBUGGING_FLAG // enable logging debugging (terminal)
+
 #define TCP_RECEIVE_BUFFER_LENGTH        2048
 #define MAX_SIMULTANEOUS_LOGGING_SOCKETS 4   // see https://docs.amdc.dev/getting-started/user-guide/logging/streaming.html#performance
 
@@ -496,12 +498,14 @@ void populateUsedSockets() {
             list_append(toRemove, self.oldUsedVariableIndices -> data[i], 'i');
         }
     }
-    // printf("toAdd: ");
-    // list_print(toAdd);
-    // printf("toRemove: ");
-    // list_print(toRemove);
-    // printf("usedVariablesIndices: ");
-    // list_print(self.usedVariableIndices);
+    #ifdef DEBUGGING_FLAG
+    printf("toAdd: ");
+    list_print(toAdd);
+    printf("toRemove: ");
+    list_print(toRemove);
+    printf("usedVariablesIndices: ");
+    list_print(self.usedVariableIndices);
+    #endif
 
     if (self.commsEnabled == 1) {
         /* open a new logging socket for each used logged variable */
@@ -567,37 +571,21 @@ void populateLoggedVariables() {
     list_append(self.data -> data[0].r, (unitype) 120.0, 'd'); // dummy 120 samples/s
 
     list_clear(self.logVariables);
-    logVariable_t *dummyVariable = malloc(sizeof(logVariable_t));
-    strcpy(dummyVariable -> name, "Unused");
-    dummyVariable -> slot = -1;
-    dummyVariable -> socketPtr = NULL;
-    dummyVariable -> socketID = -1;
+    logVariable_t *dummyVariable = variableInit("Unused", -1, NULL, -1, -1);
     list_append(self.logVariables, (unitype) (void *) dummyVariable, 'p');
     if (self.commsEnabled == 0) {
         /* make demo slots */
-        logVariable_t *demoVariable1 = malloc(sizeof(logVariable_t));
-        strcpy(demoVariable1 -> name, "Demo");
-        demoVariable1 -> slot = -1;
-        demoVariable1 -> socketPtr = NULL;
-        demoVariable1 -> socketID = -1;
+        logVariable_t *demoVariable1 = variableInit("Demo1", -1, NULL, -1, -1);
         list_append(self.logVariables, (unitype) (void *) demoVariable1, 'p');
         list_append(self.data, (unitype) list_init(), 'r');
         list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120.0, 'd'); // set samples/s
 
-        logVariable_t *demoVariable2 = malloc(sizeof(logVariable_t));
-        strcpy(demoVariable2 -> name, "Demo2");
-        demoVariable2 -> slot = -1;
-        demoVariable2 -> socketPtr = NULL;
-        demoVariable2 -> socketID = -1;
+        logVariable_t *demoVariable2 = variableInit("Demo2", -1, NULL, -1, -1);
         list_append(self.logVariables, (unitype) (void *) demoVariable2, 'p');
         list_append(self.data, (unitype) list_init(), 'r');
         list_append(self.data -> data[self.data -> length - 1].r, (unitype) 240.0, 'd'); // set samples/s
 
-        logVariable_t *demoVariable3 = malloc(sizeof(logVariable_t));
-        strcpy(demoVariable3 -> name, "Demo3");
-        demoVariable3 -> slot = -1;
-        demoVariable3 -> socketPtr = NULL;
-        demoVariable3 -> socketID = -1;
+        logVariable_t *demoVariable3 = variableInit("Demo3", -1, NULL, -1, -1);
         list_append(self.logVariables, (unitype) (void *) demoVariable3, 'p');
         list_append(self.data, (unitype) list_init(), 'r');
         list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120.0, 'd'); // set samples/s
@@ -631,7 +619,9 @@ void populateLoggedVariables() {
                 logVariable_t *newVariable = variableInit(testString + 8, slotNum, NULL, -1, -1);
                 list_append(self.logVariables, (unitype) (void *) newVariable, 'p');
                 list_append(self.data, (unitype) list_init(), 'r');
+                #ifdef DEBUGGING_FLAG
                 printf("identified logging variable: %s\n", testString + 8);
+                #endif
                 // list_append(self.data -> data[self.data -> length - 1].r, (unitype) 120.0, 'd'); // set samples/s
                 break;
             case 4: // Type: <type>
@@ -664,7 +654,9 @@ void populateLoggedVariables() {
             }
         }
     }
+    #ifdef DEBUGGING_FLAG
     printf("Max Logging Slots: %d\n", self.maxSlots);
+    #endif
     self.threadCloseSignal = 0; // enable threads
     /* populate sockets */
     populateUsedSockets();
@@ -703,7 +695,7 @@ void createNewOsc() {
     list_append(self.oscTitles, (unitype) self.windows[oscIndex].title, 's');
     self.windows[oscIndex].windowCoords[0] = -317;
     self.windows[oscIndex].windowCoords[1] = 0;
-    self.windows[oscIndex].windowCoords[2] = -13;
+    self.windows[oscIndex].windowCoords[2] = 37;
     self.windows[oscIndex].windowCoords[3] = 167;
     self.windows[oscIndex].windowTop = 15;
     self.windows[oscIndex].windowSide = 100;
@@ -842,9 +834,9 @@ void init() {
     self.topFreq = 20;
     int freqIndex = ilog2(WINDOW_FREQ);
     strcpy(self.windows[freqIndex].title, "Frequency");
-    self.windows[freqIndex].windowCoords[0] = -10;
+    self.windows[freqIndex].windowCoords[0] = 40;
     self.windows[freqIndex].windowCoords[1] = 0;
-    self.windows[freqIndex].windowCoords[2] = 172;
+    self.windows[freqIndex].windowCoords[2] = 317;
     self.windows[freqIndex].windowCoords[3] = 167;
     self.windows[freqIndex].windowTop = 15;
     self.windows[freqIndex].windowSide = 50;
@@ -924,9 +916,9 @@ void init() {
     self.infoAnimation = 0;
     int infoIndex = ilog2(WINDOW_INFO);
     strcpy(self.windows[infoIndex].title, "Info");
-    self.windows[infoIndex].windowCoords[0] = -77;
+    self.windows[infoIndex].windowCoords[0] = -78;
     self.windows[infoIndex].windowCoords[1] = -161;
-    self.windows[infoIndex].windowCoords[2] = 172;
+    self.windows[infoIndex].windowCoords[2] = 317;
     self.windows[infoIndex].windowCoords[3] = -3;
     self.windows[infoIndex].windowTop = 15;
     self.windows[infoIndex].windowSide = 0;
@@ -2133,7 +2125,9 @@ void renderInfoData() {
                 /* close all existing logging sockets */
                 for (int i = 1; i < self.logVariables -> length; i++) {
                     logVariable_t *variable = self.logVariables -> data[i].p;
-                    closesocket(*(variable -> socketPtr));
+                    if (variable -> socketPtr != NULL) {
+                        closesocket(*(variable -> socketPtr));
+                    }
                 }
                 /* IMPORTANT - must close and reopen command socket (otherwise log info command is out of date) */
                 closesocket(*self.cmdSocket);
@@ -2145,6 +2139,7 @@ void renderInfoData() {
                 printf("Successfully opened AMDC cmd socket with id %d\n", *receiveBuffer);
                 self.cmdSocketID = *receiveBuffer;
             }
+            list_clear(self.oldUsedVariableIndices);
             populateLoggedVariables();
             /* update broken dropdowns */
             for (int i = 0; i < self.windowRender -> length; i++) {
@@ -2364,6 +2359,10 @@ void utilLoop() {
 }
 
 int main(int argc, char *argv[]) {
+    /* hide console */
+    #ifndef DEBUGGING_FLAG
+    FreeConsole();
+    #endif
     GLFWwindow* window;
     /* Initialize glfw */
     if (!glfwInit()) {
