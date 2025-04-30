@@ -1,17 +1,14 @@
-# Install
+# EMPV
 
-Ensure you have node.js and npm
+The opengl version of EMPV is supported only on windows.
 
-To create application:
+Simply run empv.exe to open the application
 
-```
-npm install
-```
-
-This will install the application based on the package.js included in the repository.
-
-```
-npm start
-```
-
-This will start the application and open the window
+## TODO
+- Editor view
+- Only eight total sockets are allowed on the AMDC at a time
+- Only four logging sockets can work on the AMDC simultaneously
+- Add offset dials for oscilloscope and orbit
+- Colour the oscilloscope channels appropriately
+- Make frequency view multi-channel
+- There are more crashes than I'd like
