@@ -115,6 +115,7 @@ typedef struct { // general window attributes
     int move;
     int click;
     int resize;
+    int close;
     list_t *dials;
     list_t *switches;
     list_t *dropdowns;
@@ -764,7 +765,7 @@ void init() {
         self.tcpAsciiReceiveBuffer[i] = 0;
     }
 /* color */
-    double themeCopy[78] = {
+    double themeCopy[90] = {
         /* light theme */
         255, 255, 255, // background color
         195, 195, 195, // window color
@@ -779,6 +780,8 @@ void init() {
         255, 0, 0, // data color (channel 3)
         255, 0, 0, // data color (channel 4)
         255, 0, 0, // phase data color
+        186, 41, 26, // [X] color
+        230, 41, 41, // [X] color (hover)
         /* dark theme */
         60, 60, 60, // background color (0)
         10, 10, 10, // window color (3)
@@ -793,6 +796,8 @@ void init() {
         200, 200, 200, // data color (channel 3) (26)
         232, 15, 136, // data color (channel 4) (27)
         255, 0, 0, // phase data color
+        186, 41, 26, // [X] color
+        230, 41, 41, // [X] color (hover)
     };
     memcpy(self.themeColors, themeCopy, sizeof(themeCopy));
     self.themeDark = sizeof(themeCopy) / sizeof(double) / 2;
@@ -1214,7 +1219,7 @@ void buttonTick(int window) {
     }
 }
 
-void renderWindow(int window) {
+void renderWindow(int window, char top) {
     window_t *win = &self.windows[window];
     if (win -> minimize == 0) {
         /* render window */
@@ -1232,6 +1237,45 @@ void renderWindow(int window) {
         turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
         /* write title */
         textGLWriteUnicode(win -> title, (win -> windowCoords[0] + win -> windowCoords[2] - win -> windowSide) / 2, win -> windowCoords[3] - win -> windowTop * 0.45, win -> windowTop * 0.5, 50);
+        /* draw [X] */
+        char hovering = top && self.mx >= win -> windowCoords[2] - 10 && self.mx <= win -> windowCoords[2] - 2 && self.my >= win -> windowCoords[3] - 10 && self.my <= win -> windowCoords[3] - 2;
+        if (self.mouseDown) {
+            if (win -> close == 1) {
+                win -> close = 2;
+            }
+        } else {
+            if (win -> close == 2 && hovering) {
+                win -> minimize = 1;
+                win -> close = 0;
+                win -> resize = 0;
+                win -> move = 0;
+            } else {
+                if (hovering) {
+                    win -> close = 1;
+                } else {
+                    win -> close = 0;
+                }
+            }
+        }
+        if (win -> close == 2) {
+            win -> resize = 0;
+            win -> move = 0;
+        }
+        if (win -> close >= 1) {
+            turtleRectangle(win -> windowCoords[2] - 10, win -> windowCoords[3] - 10, win -> windowCoords[2] - 2, win -> windowCoords[3] - 2, self.themeColors[self.theme + 42], self.themeColors[self.theme + 43], self.themeColors[self.theme + 44], 0);
+        } else {
+            turtleRectangle(win -> windowCoords[2] - 10, win -> windowCoords[3] - 10, win -> windowCoords[2] - 2, win -> windowCoords[3] - 2, self.themeColors[self.theme + 39], self.themeColors[self.theme + 40], self.themeColors[self.theme + 41], 0);
+        }
+        turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
+        turtlePenSize(1);
+        turtleGoto(win -> windowCoords[2] - 8, win -> windowCoords[3] - 8);
+        turtlePenDown();
+        turtleGoto(win -> windowCoords[2] - 4, win -> windowCoords[3] - 4);
+        turtlePenUp();
+        turtleGoto(win -> windowCoords[2] - 8, win -> windowCoords[3] - 4);
+        turtlePenDown();
+        turtleGoto(win -> windowCoords[2] - 4, win -> windowCoords[3] - 8);
+        turtlePenUp();
         /* draw sidebar UI elements */
         dialTick(window);
         switchTick(window);
@@ -2170,7 +2214,7 @@ void renderOrder() {
         } else if (self.windowRender -> data[i].i == WINDOW_INFO) {
             renderInfoData();
         }
-        renderWindow(ilog2(self.windowRender -> data[i].i));
+        renderWindow(ilog2(self.windowRender -> data[i].i), i == self.windowRender -> length - 1);
     }
     /* render bottom bar */
     int subtract = 0;
