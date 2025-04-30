@@ -15,7 +15,7 @@ Features:
 #include <pthread.h>
 
 #define TCP_RECEIVE_BUFFER_LENGTH        2048
-#define MAX_SIMULTANEOUS_LOGGING_SOCKETS 4   // AMDC bug restricts concurrent streaming logging sockets to 4
+#define MAX_SIMULTANEOUS_LOGGING_SOCKETS 4   // see https://docs.amdc.dev/getting-started/user-guide/logging/streaming.html#performance
 
 #define DIAL_LINEAR     0
 #define DIAL_LOG        1
@@ -814,7 +814,7 @@ void init() {
     populateLoggedVariables(); // gather logged variables
     self.windowRender = list_init();
     list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
-    list_append(self.windowRender, (unitype) WINDOW_EDITOR, 'i');
+    list_append(self.windowRender, (unitype) WINDOW_EDITOR, 'i'); // unfinished feature
     list_append(self.windowRender, (unitype) WINDOW_ORBIT, 'i');
     list_append(self.windowRender, (unitype) WINDOW_INFO, 'i');
     self.anchorX = 0;
@@ -2155,6 +2155,10 @@ void renderInfoData() {
 
 void renderOrder() {
     for (int i = 0; i < self.windowRender -> length; i++) {
+        if (self.windowRender -> data[i].i == WINDOW_EDITOR) {
+            /* SKIP unfinished EDITOR window */
+            continue;
+        }
         if (self.windowRender -> data[i].i >= WINDOW_OSC) {
             renderOscData(ilog2(self.windowRender -> data[i].i) - ilog2(WINDOW_OSC));
         } else if (self.windowRender -> data[i].i == WINDOW_FREQ) {
@@ -2169,11 +2173,17 @@ void renderOrder() {
         renderWindow(ilog2(self.windowRender -> data[i].i));
     }
     /* render bottom bar */
+    int subtract = 0;
     turtleRectangle(-320, -180, 320, -170, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 50);
     for (int i = 0; i < self.windowRender -> length; i++) {
-        int minX = -320 + (1) + 50 * i;
+        if (strcmp(self.windows[i].title, "Editor") == 0) {
+            /* SKIP unfinished EDITOR window */
+            subtract = 1;
+            continue;
+        }
+        int minX = -320 + (1) + 50 * (i - subtract);
         int minY = -179;
-        int maxX = -320 + (49) + 50 * i;
+        int maxX = -320 + (49) + 50 * (i - subtract);
         int maxY = -171;
         if (!self.mouseDown && self.mx >= minX && self.mx <= maxX && self.my >= minY && self.my <= maxY) {
             turtleRectangle(minX, minY, maxX, maxY, self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
@@ -2183,7 +2193,7 @@ void renderOrder() {
         }
         /* write title */
         turtlePenColor(self.themeColors[self.theme + 9], self.themeColors[self.theme + 10], self.themeColors[self.theme + 11]);
-        textGLWriteUnicode(self.windows[i].title, -320 + (50 / 2) + 50 * i, -175, 5, 50);
+        textGLWriteUnicode(self.windows[i].title, -320 + (50 / 2) + 50 * (i - subtract), -175, 5, 50);
     }
 }
 
