@@ -154,6 +154,18 @@ void list_append(list_t *list, unitype data, char type) { // append to list, mus
     list -> length += 1;
 }
 
+void list_insert(list_t *list, int index, unitype value, char type) { // inserts the item value at list[index] of the list
+    while (index < 0) {index += list -> length;}
+    index %= list -> length;
+    list_append(list, (unitype) 0, type);
+    int i;
+    for (i = list -> length - 1; i > index; i--) {
+        list -> data[i] = list -> data[i - 1];
+        list -> type[i] = list -> type[i - 1];
+    }
+    list -> data[i] = value;
+}
+
 void list_clear(list_t *list) {
     list_free_lite(list);
     list -> length = 0;

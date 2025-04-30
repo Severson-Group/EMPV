@@ -159,6 +159,7 @@ typedef struct {
 
 typedef struct { // all the empv shared state is here
     /* comms */
+    int tcpInit;
     int threadCloseSignal;
     char commsEnabled;
     SOCKET *cmdSocket;
@@ -456,6 +457,16 @@ void *commsThreadFunction(void *arg) {
         }
     }
     return NULL;
+}
+
+void *specialInitThread(void *arg) {
+    self.tcpInit = 0;
+    if (win32tcpInit("192.168.1.10", "7")) {
+        self.tcpInit = -1;
+        pthread_exit(NULL);
+    }
+    self.tcpInit = 1;
+    pthread_exit(NULL);
 }
 
 void gatherUsedSockets() {
@@ -1238,6 +1249,8 @@ void renderWindow(int window, char top) {
         } else {
             if (win -> close == 2 && hovering) {
                 win -> minimize = 1;
+                list_remove(self.windowRender, (unitype) pow2(window), 'i');
+                list_insert(self.windowRender, 0, (unitype) pow2(window), 'i');
                 win -> close = 0;
                 win -> resize = 0;
                 win -> move = 0;
@@ -1295,6 +1308,8 @@ void renderWindow(int window, char top) {
                 } else {
                     if (self.windowRender -> data[self.windowRender -> length - 1].i == pow2(window)) {
                         win -> minimize = 1;
+                        list_remove(self.windowRender, (unitype) pow2(window), 'i');
+                        list_insert(self.windowRender, 0, (unitype) pow2(window), 'i');
                     } else {
                         list_remove(self.windowRender, (unitype) pow2(window), 'i');
                         list_append(self.windowRender, (unitype) pow2(window), 'i');
@@ -2394,10 +2409,61 @@ int main(int argc, char *argv[]) {
     win32ToolsInit();
     win32FileDialogAddExtension("txt"); // add txt to extension restrictions
     win32FileDialogAddExtension("csv"); // add csv to extension restrictions
+
+    int tps = 120; // ticks per second (locked to fps in this case)
+    uint64_t tick = 0;
+
+    clock_t start;
+    clock_t end;
+
+    turtleBgColor(30, 30, 30);
+
     /* initialise win32tcp */
     if (argc == 1) {
-        if (win32tcpInit("192.168.1.10", "7")) {
-            printf("Failed to connect to %s, ensure AMDC is plugged in and listening on port %s\n", win32Socket.address, win32Socket.port);
+        pthread_t initThread;
+        pthread_create(&initThread, NULL, specialInitThread, NULL);
+        turtlePenColor(200, 200, 200);
+        while (self.tcpInit == 0 && turtle.close == 0) {
+            start = clock();
+            turtleClear();
+            if (tick / 30 % 4 == 0) {
+                textGLWriteString("Connecting to AMDC", 0, 0, 40, 50);
+            } else if (tick / 30 % 4 == 1) {
+                textGLWriteString("Connecting to AMDC.", 0, 0, 40, 50);
+            } else if (tick / 30 % 4 == 2) {
+                textGLWriteString("Connecting to AMDC..", 0, 0, 40, 50);
+            } else if (tick / 30 % 4 == 3) {
+                textGLWriteString("Connecting to AMDC...", 0, 0, 40, 50);
+            }
+            turtleUpdate(); // update the screen
+            end = clock();
+            while ((double) (end - start) / CLOCKS_PER_SEC < (1.0 / tps)) {
+                end = clock();
+            }
+            tick++;
+        }
+        if (turtle.close == 1) {
+            return -1;
+        }
+        if (self.tcpInit == -1) {
+            char errorMessage[128];
+            sprintf(errorMessage, "Failed to connect to %s, ensure AMDC is plugged in and listening on port %s\n", win32Socket.address, win32Socket.port);
+            #ifdef DEBUGGING_FLAG
+            printf(errorMessage);
+            #endif
+            while (turtle.close == 0) {
+                start = clock();
+                turtleClear();
+                textGLWriteString(errorMessage, 0, 0, 11, 50);
+                textGLWriteString("restart EMPV to try again\n", 0, -20, 11, 50);
+                turtleUpdate(); // update the screen
+                end = clock();
+                while ((double) (end - start) / CLOCKS_PER_SEC < (1.0 / tps)) {
+                    end = clock();
+                }
+                tick++;
+            }
+            return -1;
         }
         self.cmdSocket = win32tcpCreateSocket();
         if (self.cmdSocket != NULL) {
@@ -2411,14 +2477,7 @@ int main(int argc, char *argv[]) {
         self.commsEnabled = 1;
     }
 
-    int tps = 120; // ticks per second (locked to fps in this case)
-    uint64_t tick = 0;
-
-    clock_t start;
-    clock_t end;
-
     init(); // initialise empv
-    turtleBgColor(self.themeColors[self.theme + 0], self.themeColors[self.theme + 1], self.themeColors[self.theme + 2]);
 
     while (turtle.close == 0) { // main loop
         start = clock();
