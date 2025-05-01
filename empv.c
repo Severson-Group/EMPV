@@ -897,8 +897,8 @@ void init() {
     self.windows[orbitIndex].switches = list_init();
     self.windows[orbitIndex].dropdowns = list_init();
     self.windows[orbitIndex].buttons = list_init();
-    list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("Y source", self.logVariables, &self.orbitDataIndex[0], WINDOW_ORBIT, -60, -60 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
-    list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("X source", self.logVariables, &self.orbitDataIndex[1], WINDOW_ORBIT, -60, -25 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
+    list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("Y source", self.logVariables, &self.orbitDataIndex[1], WINDOW_ORBIT, -60, -60 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
+    list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("X source", self.logVariables, &self.orbitDataIndex[0], WINDOW_ORBIT, -60, -25 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
     list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbitXScale, WINDOW_ORBIT, DIAL_EXP, -20, -25 - self.windows[orbitIndex].windowTop, 8, 1, 500, 1), 'p');
     list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbitYScale, WINDOW_ORBIT, DIAL_EXP, -20, -60 - self.windows[orbitIndex].windowTop, 8, 1, 500, 1), 'p');
     list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Samples", &self.orbitSamples, WINDOW_ORBIT, DIAL_EXP, -68, -95 - self.windows[orbitIndex].windowTop, 8, 1, 500, 1), 'p');
