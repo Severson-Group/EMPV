@@ -1930,7 +1930,7 @@ void renderFreqData() {
             if (mouseSample % (tickMarks / 4) == 0) {
                 tickLength = 4;
             }
-            if (self.my > self.windows[windowIndex].windowCoords[0] && self.my < self.windows[windowIndex].windowCoords[1] + 15) {
+            if (self.my > self.windows[windowIndex].windowCoords[1] && self.my < self.windows[windowIndex].windowCoords[1] + 15) {
                 turtleTriangle(xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 2, xpos + 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, xpos - 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, 215, 215, 215, 0);
                 char tickValue[24];
                 sprintf(tickValue, "%dHz", (int) ((self.freqRightBound - self.freqLeftBound) / tickMarks * mouseSample));
