@@ -2219,6 +2219,15 @@ void renderInfoData() {
             sprintf(sampleString, "%d", totalSamples);
             textGLWriteString(sampleString, self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 50 + samplesColumnWidth + totalColumnWidth / 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 25 - (i - 1) * 10, 6, 50);
         }
+        double valuesColumnWidth = textGLGetStringLength("Value", 8);
+        turtleRectangle(self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 60 + samplesColumnWidth + totalColumnWidth, self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 80 + samplesColumnWidth + totalColumnWidth + valuesColumnWidth, self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 0] - 32, self.themeColors[self.theme + 1] - 32, self.themeColors[self.theme + 2] - 32, 0);
+        textGLWriteString("Value", self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 70 + samplesColumnWidth + totalColumnWidth + valuesColumnWidth / 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 10, 8, 50);
+        for (int i = 1; i < self.logVariables -> length; i++) {
+            double value = self.data -> data[i].r -> data[self.data -> data[i].r -> length - 1].d;
+            char sampleString[24];
+            sprintf(sampleString, "%0.2lf", value);
+            textGLWriteString(sampleString, self.windows[windowIndex].windowCoords[0] + nameColumnWidth + 70 + samplesColumnWidth + totalColumnWidth + valuesColumnWidth / 2, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - 25 - (i - 1) * 10, 6, 50);
+        }
         self.windows[windowIndex].windowMinX = nameColumnWidth + samplesColumnWidth + totalColumnWidth + 103;
     }
 }
