@@ -1981,10 +1981,10 @@ void renderOrbitData() {
             double orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2;
             double orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2;
             if (self.orbitStopIndex[0] >= i) {
-                orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + self.data -> data[self.orbitDataIndex[0]].r -> data[self.orbitStopIndex[0] - i - 1].d / self.orbitScale[0] * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
+                orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + ((self.data -> data[self.orbitDataIndex[0]].r -> data[self.orbitStopIndex[0] - i - 1].d - self.orbitOffset[0]) / self.orbitScale[0]) * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
             }
             if (self.orbitStopIndex[1] >= i) {
-                orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + self.data -> data[self.orbitDataIndex[1]].r -> data[self.orbitStopIndex[1] - i - 1].d / self.orbitScale[1] * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+                orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + ((self.data -> data[self.orbitDataIndex[1]].r -> data[self.orbitStopIndex[1] - i - 1].d - self.orbitOffset[1]) / self.orbitScale[1]) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
             }
             turtleGoto(orbitX, orbitY);
             turtlePenDown();
@@ -1997,8 +1997,8 @@ void renderOrbitData() {
             double distClosest = 10000.0;
             for (int i = 0; i < self.orbitSamples; i++) {
                 if (self.orbitStopIndex[0] >= i && self.orbitStopIndex[1] >= i) {
-                    double xDist = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + self.data -> data[self.orbitDataIndex[0]].r -> data[self.orbitStopIndex[0] - i - 1].d / self.orbitScale[0] * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]) - self.mx;
-                    double yDist = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + self.data -> data[self.orbitDataIndex[1]].r -> data[self.orbitStopIndex[1] - i - 1].d / self.orbitScale[1] * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]) - self.my;
+                    double xDist = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + (self.data -> data[self.orbitDataIndex[0]].r -> data[self.orbitStopIndex[0] - i - 1].d - self.orbitOffset[0]) / self.orbitScale[0] * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]) - self.mx;
+                    double yDist = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + (self.data -> data[self.orbitDataIndex[1]].r -> data[self.orbitStopIndex[1] - i - 1].d - self.orbitOffset[1]) / self.orbitScale[1] * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]) - self.my;
                     double distSquared = xDist * xDist + yDist * yDist;
                     if (distSquared < distClosest) {
                         distClosest = distSquared;
@@ -2012,10 +2012,10 @@ void renderOrbitData() {
                 double orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2;
                 double orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2;
                 if (self.orbitStopIndex[0] >= closestIndex) {
-                    orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + self.data -> data[self.orbitDataIndex[0]].r -> data[self.orbitStopIndex[0] - closestIndex - 1].d / self.orbitScale[0] * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
+                    orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + (self.data -> data[self.orbitDataIndex[0]].r -> data[self.orbitStopIndex[0] - closestIndex - 1].d - self.orbitOffset[0]) / self.orbitScale[0] * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
                 }
                 if (self.orbitStopIndex[1] >= closestIndex) {
-                    orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + self.data -> data[self.orbitDataIndex[1]].r -> data[self.orbitStopIndex[1] - closestIndex - 1].d / self.orbitScale[1] * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+                    orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + (self.data -> data[self.orbitDataIndex[1]].r -> data[self.orbitStopIndex[1] - closestIndex - 1].d - self.orbitOffset[1]) / self.orbitScale[1] * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
                 }
                 turtleRectangle(orbitX - 1, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop, orbitX + 1, self.windows[windowIndex].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
                 turtleRectangle(self.windows[windowIndex].windowCoords[0], orbitY - 1, self.windows[windowIndex].windowCoords[2], orbitY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
@@ -2090,7 +2090,7 @@ void renderOrbitData() {
             if (self.mx > self.windows[windowIndex].windowCoords[0] && self.mx < self.windows[windowIndex].windowCoords[0] + 15) {
                 turtleTriangle(self.windows[windowIndex].windowCoords[0] + tickLength + 2, ypos, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
                 char tickValue[24];
-                sprintf(tickValue, "%d", (int) (self.orbitScale[1] / tickMarks * mouseSample - self.orbitScale[1] / 2));
+                sprintf(tickValue, "%d", (int) ((self.orbitScale[1] / tickMarks * mouseSample - self.orbitScale[1] / 2) + self.orbitOffset[1]));
                 turtlePenColor(215, 215, 215);
                 textGLWriteString(tickValue, self.windows[windowIndex].windowCoords[0] + tickLength + 13, ypos, 8, 0);
             }
@@ -2133,7 +2133,7 @@ void renderOrbitData() {
             if (self.my > self.windows[windowIndex].windowCoords[0] && self.my < self.windows[windowIndex].windowCoords[1] + 15) {
                 turtleTriangle(xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 2, xpos + 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, xpos - 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, 215, 215, 215, 0);
                 char tickValue[24];
-                sprintf(tickValue, "%d", (int) (self.orbitScale[0] / tickMarks * mouseSample - self.orbitScale[0] / 2));
+                sprintf(tickValue, "%d", (int) ((self.orbitScale[0] / tickMarks * mouseSample - self.orbitScale[0] / 2) + self.orbitOffset[0]));
                 turtlePenColor(215, 215, 215);
                 textGLWriteString(tickValue, xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 17, 8, 50);
             }
