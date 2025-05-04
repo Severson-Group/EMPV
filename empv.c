@@ -513,14 +513,6 @@ void populateUsedSockets() {
             list_append(toRemove, self.oldUsedVariableIndices -> data[i], 'i');
         }
     }
-    #ifdef DEBUGGING_FLAG
-    printf("toAdd: ");
-    list_print(toAdd);
-    printf("toRemove: ");
-    list_print(toRemove);
-    printf("usedVariablesIndices: ");
-    list_print(self.usedVariableIndices);
-    #endif
 
     if (self.commsEnabled == 1) {
         /* open a new logging socket for each used logged variable */
@@ -2277,7 +2269,7 @@ void renderOrder() {
 }
 
 void saveOsc(char *filename) {
-    char header[1024] = "Time, ";
+    char header[1024] = "Time (ms), ";
     FILE *fp = fopen(filename, "w");
     /* assess oscilloscope */
     int oscIndex = 0;
@@ -2307,13 +2299,10 @@ void saveOsc(char *filename) {
             list_append(channels, (unitype) xquantum[i], 'd');
         }
     }
-    printf("%lf %lf %lf %lf\n", xquantum[0], xquantum[1], xquantum[2], xquantum[3]);
     header[strlen(header) - 2] = '\0';
-    printf("%s\n", header);
     fprintf(fp, "%s\n", header);
     /* linear interpolate */
     double timestep = 0.0;
-    printf("%d iterations, %lf global quantum\n", iterations, globalQuantum);
     for (int j = 0; j < iterations; j++) {
         char line[1024];
         sprintf(line, "%lf, ", timestep);
@@ -2322,7 +2311,6 @@ void saveOsc(char *filename) {
             double valueLower = self.data -> data[channels -> data[i * 3 + 0].i].r -> data[(int) preciseIndex].d;
             double valueUpper = self.data -> data[channels -> data[i * 3 + 0].i].r -> data[(int) preciseIndex + 1].d;
             double value = valueLower + (valueUpper - valueLower) * (preciseIndex - (int) preciseIndex);
-            printf("%lf, %lf\n", preciseIndex, value);
             sprintf(line, "%s%lf, ", line, value);
         }
         line[strlen(line) - 2] = '\0';
