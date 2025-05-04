@@ -689,7 +689,7 @@ void populateLoggedVariables() {
 }
 
 void createNewOsc() {
-    if (self.newOsc > 3) {
+    if (self.newOsc > NUMBER_OF_OSC - 1) {
         return;
     }
     self.osc[self.newOsc].trigger.threshold = 0.0;
@@ -777,6 +777,9 @@ void createNewOsc() {
 }
 
 void createNewOrbit() {
+    if (self.newOrbit > NUMBER_OF_ORBIT - 1) {
+        return;
+    }
     self.orbit[self.newOrbit].stop = 0;
     self.orbit[self.newOrbit].scale[0] = 70;
     self.orbit[self.newOrbit].scale[1] = 70;
@@ -931,7 +934,6 @@ void init() {
     self.windows[freqIndex].dropdownLogicIndex = -1;
     /* orbit */
     self.newOrbit = 0;
-    createNewOrbit();
     createNewOrbit();
     /* editor */
     int editorIndex = ilog2(WINDOW_EDITOR);
@@ -2154,7 +2156,7 @@ void renderOrbitData(int orbitIndex) {
             if (mouseSample % (tickMarks / 4) == 0) {
                 tickLength = 4;
             }
-            if (self.my > self.windows[windowIndex].windowCoords[0] && self.my < self.windows[windowIndex].windowCoords[1] + 15) {
+            if (self.my > self.windows[windowIndex].windowCoords[1] && self.my < self.windows[windowIndex].windowCoords[1] + 15) {
                 turtleTriangle(xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 2, xpos + 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, xpos - 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, 215, 215, 215, 0);
                 char tickValue[24];
                 sprintf(tickValue, "%d", (int) ((self.orbit[orbitIndex].scale[0] / tickMarks * mouseSample - self.orbit[orbitIndex].scale[0] / 2) - self.orbit[orbitIndex].offset[0]));
@@ -2274,10 +2276,10 @@ void renderOrder() {
     /* render bottom bar */
     int subtract = 0;
     turtleRectangle(-320, -180, 320, -170, self.themeColors[self.theme + 3], self.themeColors[self.theme + 4], self.themeColors[self.theme + 5], 50);
-    for (int i = 0; i < self.windowRender -> length; i++) {
-        if (strcmp(self.windows[i].title, "Editor") == 0) {
+    for (int i = 0; i < NUM_WINDOWS; i++) {
+        if (strlen(self.windows[i].title) == 0 || strcmp(self.windows[i].title, "Editor") == 0) {
             /* SKIP unfinished EDITOR window */
-            subtract = 1;
+            subtract += 1;
             continue;
         }
         int minX = -320 + (1) + 50 * (i - subtract);
@@ -2353,17 +2355,19 @@ void parseRibbonOutput() {
     if (ribbonRender.output[0] == 1) {
         ribbonRender.output[0] = 0; // untoggle
         if (ribbonRender.output[1] == 0) { // file
-            if (ribbonRender.output[2] == 1) { // new
-                printf("New oscilloscope created\n");
+            if (ribbonRender.output[2] == 1) { // new oscilloscope
                 createNewOsc();
             }
-            if (ribbonRender.output[2] == 2) { // save/save as
+            if (ribbonRender.output[2] == 2) { // new orbit
+                createNewOrbit();
+            }
+            if (ribbonRender.output[2] == 3) { // save/save as
                 if (win32FileDialogPrompt(1, "") != -1) {
                     saveOsc(win32FileDialog.selectedFilename);
                     printf("Saved to: %s\n", win32FileDialog.selectedFilename);
                 }
             }
-            if (ribbonRender.output[2] == 3) { // open
+            if (ribbonRender.output[2] == 4) { // open
                 if (win32FileDialogPrompt(0, "") != -1) {
                     printf("Loaded data from: %s\n", win32FileDialog.selectedFilename);
                 }
