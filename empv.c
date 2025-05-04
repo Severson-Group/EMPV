@@ -3,7 +3,6 @@ Features:
 - Oscilloscope-like interface
 - Frequency graph
 - Orbital plot
-- Editor
 */
 
 #include "include/ribbon.h"
@@ -19,22 +18,23 @@ Features:
 #define TCP_RECEIVE_BUFFER_LENGTH        2048
 #define MAX_SIMULTANEOUS_LOGGING_SOCKETS 4   // see https://docs.amdc.dev/getting-started/user-guide/logging/streaming.html#performance
 
-#define DIAL_LINEAR     0
-#define DIAL_LOG        1
-#define DIAL_EXP        2
+#define DIAL_LINEAR       0
+#define DIAL_LOG          1
+#define DIAL_EXP          2
 
-#define NUM_WINDOWS     8
-#define WINDOW_INFO     1
-#define WINDOW_FREQ     2
-#define WINDOW_EDITOR   4
-#define WINDOW_ORBIT    8
-#define WINDOW_OSC      16
+#define NUM_WINDOWS       10
+#define WINDOW_INFO       1
+#define WINDOW_FREQ       2
+#define WINDOW_EDITOR     4
+#define WINDOW_ORBIT      8
+#define WINDOW_OSC        32
 
 #define TRIGGER_TIMEOUT   150
 #define PHASE_THRESHOLD   0.5
 #define ORBIT_DIST_THRESH 2500
 
-#define NUMBER_OF_OSC 4
+#define NUMBER_OF_OSC     4
+#define NUMBER_OF_ORBIT   2
 
 void delay_ms(int delay) {
     clock_t start;
@@ -151,6 +151,16 @@ typedef struct { // oscilloscope view
     int above; // whether the current data point is above or below the trigger point
 } oscilloscope_t;
 
+typedef struct { // orbit view
+    int stop;
+    double scale[2];
+    double offset[2];
+    double samples;
+    int stopIndex[2]; // index of most recent orbit sample
+    int dataIndex[2]; // index of data list for orbit source (X, Y)
+    int plotIndex[2]; // index inside data list for orbit plot (X, Y)
+} orbit_t;
+
 typedef struct {
     char name[128]; // name of variable
     int slot; // Slot # within AMDC (e.g. Slot 0: LOG_amdc_channel_1), -1 when not in use
@@ -191,7 +201,7 @@ typedef struct { // all the empv shared state is here
         int themeDark;
         double themeColors[90];
     /* oscilloscope view */
-        list_t *oscTitles; // list of oscilloscope titles
+        list_t *oscTitles; // list of oscilloscope titles (for frequency dropdown)
         oscilloscope_t osc[NUMBER_OF_OSC]; // up to four oscilloscopes
         int newOsc;
     /* frequency view */
@@ -205,13 +215,8 @@ typedef struct { // all the empv shared state is here
         double freqZoom;
         double topFreq; // top bound (y value)
     /* orbit view */
-        int orbitStop;
-        double orbitScale[2];
-        double orbitOffset[2];
-        double orbitSamples;
-        int orbitStopIndex[2]; // index of most recent orbit sample
-        int orbitDataIndex[2]; // index of data list for orbit source (X, Y)
-        int orbitPlotIndex[2]; // index inside data list for orbit plot (X, Y)
+        orbit_t orbit[NUMBER_OF_ORBIT]; // up to two orbit plots
+        int newOrbit;
     /* editor view */
         double editorBottomBound;
         double editorWindowSize; // size of window
@@ -476,8 +481,14 @@ void *specialInitThread(void *arg) {
 void gatherUsedSockets() {
     /* gather all used sockets */
     list_clear(self.usedVariableIndices);
-    list_append(self.usedVariableIndices, (unitype) self.orbitDataIndex[0], 'i');
-    list_append(self.usedVariableIndices, (unitype) self.orbitDataIndex[1], 'i');
+    for (int i = 0; i < NUMBER_OF_ORBIT; i++) {
+        for (int j = 0; j < 2; j++) {
+            int usedChannel = self.orbit[i].dataIndex[j];
+            if (list_count(self.usedVariableIndices, (unitype) usedChannel, 'i') == 0) {
+                list_append(self.usedVariableIndices, (unitype) usedChannel, 'i');
+            }
+        }
+    }
     for (int i = 0; i < NUMBER_OF_OSC; i++) {
         for (int j = 0; j < 4; j++) {
             int usedChannel = self.osc[i].dataIndex[j];
@@ -513,6 +524,14 @@ void populateUsedSockets() {
             list_append(toRemove, self.oldUsedVariableIndices -> data[i], 'i');
         }
     }
+    #ifdef DEBUGGING_FLAG
+    printf("toAdd: ");
+    list_print(toAdd);
+    printf("toRemove: ");
+    list_print(toRemove);
+    printf("usedVariablesIndices: ");
+    list_print(self.usedVariableIndices);
+    #endif
 
     if (self.commsEnabled == 1) {
         /* open a new logging socket for each used logged variable */
@@ -757,6 +776,47 @@ void createNewOsc() {
     populateUsedSockets();
 }
 
+void createNewOrbit() {
+    self.orbit[self.newOrbit].stop = 0;
+    self.orbit[self.newOrbit].scale[0] = 70;
+    self.orbit[self.newOrbit].scale[1] = 70;
+    self.orbit[self.newOrbit].offset[0] = 0;
+    self.orbit[self.newOrbit].offset[1] = 0;
+    self.orbit[self.newOrbit].stopIndex[0] = 1;
+    self.orbit[self.newOrbit].stopIndex[1] = 1;
+    self.orbit[self.newOrbit].samples = 20;
+    int orbitIndex = ilog2(WINDOW_ORBIT) + self.newOrbit;
+    sprintf(self.windows[orbitIndex].title, "Orbit %d", self.newOrbit + 1);
+    self.windows[orbitIndex].windowCoords[0] = -317;
+    self.windows[orbitIndex].windowCoords[1] = -161;
+    self.windows[orbitIndex].windowCoords[2] = -55;
+    self.windows[orbitIndex].windowCoords[3] = -3;
+    self.windows[orbitIndex].windowTop = 15;
+    self.windows[orbitIndex].windowSide = 50;
+    self.windows[orbitIndex].windowMinX = 100 + self.windows[orbitIndex].windowSide;
+    self.windows[orbitIndex].windowMinY = 120 + self.windows[orbitIndex].windowTop;
+    self.windows[orbitIndex].minimize = 0;
+    self.windows[orbitIndex].move = 0;
+    self.windows[orbitIndex].click = 0;
+    self.windows[orbitIndex].resize = 0;
+    self.windows[orbitIndex].dials = list_init();
+    self.windows[orbitIndex].switches = list_init();
+    self.windows[orbitIndex].dropdowns = list_init();
+    self.windows[orbitIndex].buttons = list_init();
+    dropdown_metadata_t metadata;
+    metadata.inUse = 0;
+    list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("Y source", self.logVariables, &self.orbit[self.newOrbit].dataIndex[1], WINDOW_ORBIT * pow2(self.newOrbit), -90, -60 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
+    list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("X source", self.logVariables, &self.orbit[self.newOrbit].dataIndex[0], WINDOW_ORBIT * pow2(self.newOrbit), -90, -25 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
+    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbit[self.newOrbit].scale[0], WINDOW_ORBIT * pow2(self.newOrbit), DIAL_EXP, -55, -25 - self.windows[orbitIndex].windowTop, 8, 1, 500, 1), 'p');
+    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbit[self.newOrbit].scale[1], WINDOW_ORBIT * pow2(self.newOrbit), DIAL_EXP, -55, -60 - self.windows[orbitIndex].windowTop, 8, 1, 500, 1), 'p');
+    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Offset", &self.orbit[self.newOrbit].offset[0], WINDOW_ORBIT * pow2(self.newOrbit), DIAL_LINEAR, -20, -25 - self.windows[orbitIndex].windowTop, 8, 500, -500, 1), 'p');
+    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Offset", &self.orbit[self.newOrbit].offset[1], WINDOW_ORBIT * pow2(self.newOrbit), DIAL_LINEAR, -20, -60 - self.windows[orbitIndex].windowTop, 8, -500, 500, 1), 'p');
+    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Samples", &self.orbit[self.newOrbit].samples, WINDOW_ORBIT * pow2(self.newOrbit), DIAL_EXP, -90, -95 - self.windows[orbitIndex].windowTop, 8, 1, 500, 1), 'p');
+    list_append(self.windows[orbitIndex].switches, (unitype) (void *) switchInit("Pause", &self.orbit[self.newOrbit].stop, WINDOW_ORBIT * pow2(self.newOrbit), -20, -95 - self.windows[orbitIndex].windowTop, 8), 'p');
+    list_append(self.windowRender, (unitype) (WINDOW_ORBIT * pow2(self.newOrbit)), 'i');
+    self.newOrbit++;
+}
+
 /* initialises the empv variabes (shared state) */
 void init() {
 /* comms */
@@ -821,7 +881,6 @@ void init() {
     self.windowRender = list_init();
     list_append(self.windowRender, (unitype) WINDOW_FREQ, 'i');
     list_append(self.windowRender, (unitype) WINDOW_EDITOR, 'i'); // unfinished feature
-    list_append(self.windowRender, (unitype) WINDOW_ORBIT, 'i');
     list_append(self.windowRender, (unitype) WINDOW_INFO, 'i');
     self.anchorX = 0;
     self.anchorY = 0;
@@ -871,40 +930,9 @@ void init() {
     list_append(self.windows[freqIndex].dropdowns, (unitype) (void *) dropdownInit(NULL, self.oscTitles, &self.freqOscIndex, pow2(freqIndex), -20, -45 - self.windows[freqIndex].windowTop, 8, metadata), 'p');
     self.windows[freqIndex].dropdownLogicIndex = -1;
     /* orbit */
-    self.orbitStop = 0;
-    self.orbitScale[0] = 70;
-    self.orbitScale[1] = 70;
-    self.orbitOffset[0] = 0;
-    self.orbitOffset[1] = 0;
-    self.orbitStopIndex[0] = 1;
-    self.orbitStopIndex[1] = 1;
-    self.orbitSamples = 20;
-    int orbitIndex = ilog2(WINDOW_ORBIT);
-    strcpy(self.windows[orbitIndex].title, "Orbit");
-    self.windows[orbitIndex].windowCoords[0] = -317;
-    self.windows[orbitIndex].windowCoords[1] = -161;
-    self.windows[orbitIndex].windowCoords[2] = -81;
-    self.windows[orbitIndex].windowCoords[3] = -3;
-    self.windows[orbitIndex].windowTop = 15;
-    self.windows[orbitIndex].windowSide = 50;
-    self.windows[orbitIndex].windowMinX = 100 + self.windows[orbitIndex].windowSide;
-    self.windows[orbitIndex].windowMinY = 120 + self.windows[orbitIndex].windowTop;
-    self.windows[orbitIndex].minimize = 0;
-    self.windows[orbitIndex].move = 0;
-    self.windows[orbitIndex].click = 0;
-    self.windows[orbitIndex].resize = 0;
-    self.windows[orbitIndex].dials = list_init();
-    self.windows[orbitIndex].switches = list_init();
-    self.windows[orbitIndex].dropdowns = list_init();
-    self.windows[orbitIndex].buttons = list_init();
-    list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("Y source", self.logVariables, &self.orbitDataIndex[1], WINDOW_ORBIT, -90, -60 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
-    list_append(self.windows[orbitIndex].dropdowns, (unitype) (void *) dropdownInit("X source", self.logVariables, &self.orbitDataIndex[0], WINDOW_ORBIT, -90, -25 - self.windows[orbitIndex].windowTop, 8, metadata), 'p');
-    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbitScale[0], WINDOW_ORBIT, DIAL_EXP, -55, -25 - self.windows[orbitIndex].windowTop, 8, 1, 500, 1), 'p');
-    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Scale", &self.orbitScale[1], WINDOW_ORBIT, DIAL_EXP, -55, -60 - self.windows[orbitIndex].windowTop, 8, 1, 500, 1), 'p');
-    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Offset", &self.orbitOffset[0], WINDOW_ORBIT, DIAL_LINEAR, -20, -25 - self.windows[orbitIndex].windowTop, 8, 500, -500, 1), 'p');
-    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Offset", &self.orbitOffset[1], WINDOW_ORBIT, DIAL_LINEAR, -20, -60 - self.windows[orbitIndex].windowTop, 8, -500, 500, 1), 'p');
-    list_append(self.windows[orbitIndex].dials, (unitype) (void *) dialInit("Samples", &self.orbitSamples, WINDOW_ORBIT, DIAL_EXP, -90, -95 - self.windows[orbitIndex].windowTop, 8, 1, 500, 1), 'p');
-    list_append(self.windows[orbitIndex].switches, (unitype) (void *) switchInit("Pause", &self.orbitStop, WINDOW_ORBIT, -20, -95 - self.windows[orbitIndex].windowTop, 8), 'p');
+    self.newOrbit = 0;
+    createNewOrbit();
+    createNewOrbit();
     /* editor */
     int editorIndex = ilog2(WINDOW_EDITOR);
     strcpy(self.windows[editorIndex].title, "Editor");
@@ -929,7 +957,7 @@ void init() {
     self.infoAnimation = 0;
     int infoIndex = ilog2(WINDOW_INFO);
     strcpy(self.windows[infoIndex].title, "Info");
-    self.windows[infoIndex].windowCoords[0] = -78;
+    self.windows[infoIndex].windowCoords[0] = -52;
     self.windows[infoIndex].windowCoords[1] = -161;
     self.windows[infoIndex].windowCoords[2] = 317;
     self.windows[infoIndex].windowCoords[3] = -3;
@@ -1156,7 +1184,7 @@ void dropdownTick(int window) {
                         }
                         dropdown -> status = -2;
                         /* special: set usedVariableIndices if this is an oscilloscope or orbit plot */
-                        if (dropdown -> metadata.inUse || dropdown -> variable == &self.orbitDataIndex[0] || dropdown -> variable == &self.orbitDataIndex[1]) {
+                        if (dropdown -> metadata.inUse || dropdown -> window >= WINDOW_ORBIT) {
                             populateUsedSockets();
                         }
                     }
@@ -1957,30 +1985,30 @@ void renderEditorData() {
     }
 }
 
-void renderOrbitData() {
+void renderOrbitData(int orbitIndex) {
     /*
     TODO
     time sync
     */
-    int windowIndex = ilog2(WINDOW_ORBIT);
+    int windowIndex = ilog2(WINDOW_ORBIT) + orbitIndex;
     if (self.windows[windowIndex].minimize == 0) {
         /* render window background */
         turtleRectangle(self.windows[windowIndex].windowCoords[0], self.windows[windowIndex].windowCoords[1], self.windows[windowIndex].windowCoords[2], self.windows[windowIndex].windowCoords[3], self.themeColors[self.theme + 12], self.themeColors[self.theme + 13], self.themeColors[self.theme + 14], 0);
         /* render data */
         turtlePenSize(1);
         turtlePenColor(self.themeColors[self.theme + 6], self.themeColors[self.theme + 7], self.themeColors[self.theme + 8]);
-        if (!self.orbitStop) {
-            self.orbitStopIndex[0] = self.data -> data[self.orbitDataIndex[0]].r -> length;
-            self.orbitStopIndex[1] = self.data -> data[self.orbitDataIndex[1]].r -> length;
+        if (!self.orbit[orbitIndex].stop) {
+            self.orbit[orbitIndex].stopIndex[0] = self.data -> data[self.orbit[orbitIndex].dataIndex[0]].r -> length;
+            self.orbit[orbitIndex].stopIndex[1] = self.data -> data[self.orbit[orbitIndex].dataIndex[1]].r -> length;
         }
-        double orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + self.orbitOffset[0] / self.orbitScale[0] * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
-        double orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + self.orbitOffset[1] / self.orbitScale[1] * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
-        for (int i = 1; i < self.orbitSamples; i++) {
-            if (self.orbitStopIndex[0] > i) {
-                orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + ((self.data -> data[self.orbitDataIndex[0]].r -> data[self.orbitStopIndex[0] - i - 1].d + self.orbitOffset[0]) / self.orbitScale[0]) * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
+        double orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + self.orbit[orbitIndex].offset[0] / self.orbit[orbitIndex].scale[0] * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
+        double orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + self.orbit[orbitIndex].offset[1] / self.orbit[orbitIndex].scale[1] * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+        for (int i = 1; i < self.orbit[orbitIndex].samples; i++) {
+            if (self.orbit[orbitIndex].stopIndex[0] > i) {
+                orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + ((self.data -> data[self.orbit[orbitIndex].dataIndex[0]].r -> data[self.orbit[orbitIndex].stopIndex[0] - i - 1].d + self.orbit[orbitIndex].offset[0]) / self.orbit[orbitIndex].scale[0]) * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
             }
-            if (self.orbitStopIndex[1] > i) {
-                orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + ((self.data -> data[self.orbitDataIndex[1]].r -> data[self.orbitStopIndex[1] - i - 1].d + self.orbitOffset[1]) / self.orbitScale[1]) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+            if (self.orbit[orbitIndex].stopIndex[1] > i) {
+                orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + ((self.data -> data[self.orbit[orbitIndex].dataIndex[1]].r -> data[self.orbit[orbitIndex].stopIndex[1] - i - 1].d + self.orbit[orbitIndex].offset[1]) / self.orbit[orbitIndex].scale[1]) * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
             }
             turtleGoto(orbitX, orbitY);
             turtlePenDown();
@@ -1991,10 +2019,10 @@ void renderOrbitData() {
             /* find closest point on orbit plot */
             int closestIndex = -1;
             double distClosest = 10000.0;
-            for (int i = 0; i < self.orbitSamples; i++) {
-                if (self.orbitStopIndex[0] >= i && self.orbitStopIndex[1] >= i) {
-                    double xDist = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + (self.data -> data[self.orbitDataIndex[0]].r -> data[self.orbitStopIndex[0] - i - 1].d + self.orbitOffset[0]) / self.orbitScale[0] * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]) - self.mx;
-                    double yDist = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + (self.data -> data[self.orbitDataIndex[1]].r -> data[self.orbitStopIndex[1] - i - 1].d + self.orbitOffset[1]) / self.orbitScale[1] * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]) - self.my;
+            for (int i = 0; i < self.orbit[orbitIndex].samples; i++) {
+                if (self.orbit[orbitIndex].stopIndex[0] >= i && self.orbit[orbitIndex].stopIndex[1] >= i) {
+                    double xDist = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + (self.data -> data[self.orbit[orbitIndex].dataIndex[0]].r -> data[self.orbit[orbitIndex].stopIndex[0] - i - 1].d + self.orbit[orbitIndex].offset[0]) / self.orbit[orbitIndex].scale[0] * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]) - self.mx;
+                    double yDist = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + (self.data -> data[self.orbit[orbitIndex].dataIndex[1]].r -> data[self.orbit[orbitIndex].stopIndex[1] - i - 1].d + self.orbit[orbitIndex].offset[1]) / self.orbit[orbitIndex].scale[1] * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]) - self.my;
                     double distSquared = xDist * xDist + yDist * yDist;
                     if (distSquared < distClosest) {
                         distClosest = distSquared;
@@ -2007,11 +2035,11 @@ void renderOrbitData() {
             if (closestIndex != -1 && distClosest < ORBIT_DIST_THRESH) {
                 double orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2;
                 double orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2;
-                if (self.orbitStopIndex[0] >= closestIndex) {
-                    orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + (self.data -> data[self.orbitDataIndex[0]].r -> data[self.orbitStopIndex[0] - closestIndex - 1].d + self.orbitOffset[0]) / self.orbitScale[0] * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
+                if (self.orbit[orbitIndex].stopIndex[0] >= closestIndex) {
+                    orbitX = (self.windows[windowIndex].windowCoords[0] + self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide) / 2 + (self.data -> data[self.orbit[orbitIndex].dataIndex[0]].r -> data[self.orbit[orbitIndex].stopIndex[0] - closestIndex - 1].d + self.orbit[orbitIndex].offset[0]) / self.orbit[orbitIndex].scale[0] * (self.windows[windowIndex].windowCoords[2] - self.windows[windowIndex].windowSide - self.windows[windowIndex].windowCoords[0]);
                 }
-                if (self.orbitStopIndex[1] >= closestIndex) {
-                    orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + (self.data -> data[self.orbitDataIndex[1]].r -> data[self.orbitStopIndex[1] - closestIndex - 1].d + self.orbitOffset[1]) / self.orbitScale[1] * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
+                if (self.orbit[orbitIndex].stopIndex[1] >= closestIndex) {
+                    orbitY = (self.windows[windowIndex].windowCoords[1] + self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop) / 2 + (self.data -> data[self.orbit[orbitIndex].dataIndex[1]].r -> data[self.orbit[orbitIndex].stopIndex[1] - closestIndex - 1].d + self.orbit[orbitIndex].offset[1]) / self.orbit[orbitIndex].scale[1] * (self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop - self.windows[windowIndex].windowCoords[1]);
                 }
                 turtleRectangle(orbitX - 1, self.windows[windowIndex].windowCoords[3] - self.windows[windowIndex].windowTop, orbitX + 1, self.windows[windowIndex].windowCoords[1], self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
                 turtleRectangle(self.windows[windowIndex].windowCoords[0], orbitY - 1, self.windows[windowIndex].windowCoords[2], orbitY + 1, self.themeColors[self.theme + 21], self.themeColors[self.theme + 22], self.themeColors[self.theme + 23], 100);
@@ -2022,7 +2050,7 @@ void renderOrbitData() {
                 turtlePenUp();
                 char sampleValue[24];
                 /* render side box */
-                sprintf(sampleValue, "%.02lf", self.data -> data[self.orbitDataIndex[1]].r -> data[self.orbitStopIndex[1] - closestIndex - 1].d);
+                sprintf(sampleValue, "%.02lf", self.data -> data[self.orbit[orbitIndex].dataIndex[1]].r -> data[self.orbit[orbitIndex].stopIndex[1] - closestIndex - 1].d);
                 double boxLength = textGLGetStringLength(sampleValue, 8);
                 double boxX = self.windows[windowIndex].windowCoords[0] + 12;
                 if (orbitX - boxX < 40) {
@@ -2033,7 +2061,7 @@ void renderOrbitData() {
                 turtlePenColor(0, 0, 0);
                 textGLWriteString(sampleValue, boxX + 2, boxY - 1, 8, 0);
                 /* render top box */
-                sprintf(sampleValue, "%.02lf", self.data -> data[self.orbitDataIndex[0]].r -> data[self.orbitStopIndex[0] - closestIndex - 1].d);
+                sprintf(sampleValue, "%.02lf", self.data -> data[self.orbit[orbitIndex].dataIndex[0]].r -> data[self.orbit[orbitIndex].stopIndex[0] - closestIndex - 1].d);
                 double boxLength2 = textGLGetStringLength(sampleValue, 8);
                 double boxY2 = orbitY + 10;
                 double boxX2 = orbitX - boxLength2 / 2;
@@ -2057,8 +2085,8 @@ void renderOrbitData() {
         turtlePenDown();
         turtleGoto(self.windows[windowIndex].windowCoords[0] + 5, ycenter);
         turtlePenUp();
-        int tickMarks = round(self.orbitScale[1] / 4) * 4;
-        double culling = self.orbitScale[1];
+        int tickMarks = round(self.orbit[orbitIndex].scale[1] / 4) * 4;
+        double culling = self.orbit[orbitIndex].scale[1];
         while (culling > 60) {
             culling /= 4;
             tickMarks /= 4;
@@ -2086,7 +2114,7 @@ void renderOrbitData() {
             if (self.mx > self.windows[windowIndex].windowCoords[0] && self.mx < self.windows[windowIndex].windowCoords[0] + 15) {
                 turtleTriangle(self.windows[windowIndex].windowCoords[0] + tickLength + 2, ypos, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
                 char tickValue[24];
-                sprintf(tickValue, "%d", (int) ((self.orbitScale[1] / tickMarks * mouseSample - self.orbitScale[1] / 2) - self.orbitOffset[1]));
+                sprintf(tickValue, "%d", (int) ((self.orbit[orbitIndex].scale[1] / tickMarks * mouseSample - self.orbit[orbitIndex].scale[1] / 2) - self.orbit[orbitIndex].offset[1]));
                 turtlePenColor(215, 215, 215);
                 textGLWriteString(tickValue, self.windows[windowIndex].windowCoords[0] + tickLength + 13, ypos, 8, 0);
             }
@@ -2100,8 +2128,8 @@ void renderOrbitData() {
         turtlePenDown();
         turtleGoto(xcenter, self.windows[windowIndex].windowCoords[1] + 5);
         turtlePenUp();
-        tickMarks = round(self.orbitScale[0] / 4) * 4;
-        culling = self.orbitScale[0];
+        tickMarks = round(self.orbit[orbitIndex].scale[0] / 4) * 4;
+        culling = self.orbit[orbitIndex].scale[0];
         while (culling > 60) {
             culling /= 4;
             tickMarks /= 4;
@@ -2129,7 +2157,7 @@ void renderOrbitData() {
             if (self.my > self.windows[windowIndex].windowCoords[0] && self.my < self.windows[windowIndex].windowCoords[1] + 15) {
                 turtleTriangle(xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 2, xpos + 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, xpos - 6, self.windows[windowIndex].windowCoords[1] + tickLength + 10, 215, 215, 215, 0);
                 char tickValue[24];
-                sprintf(tickValue, "%d", (int) ((self.orbitScale[0] / tickMarks * mouseSample - self.orbitScale[0] / 2) - self.orbitOffset[0]));
+                sprintf(tickValue, "%d", (int) ((self.orbit[orbitIndex].scale[0] / tickMarks * mouseSample - self.orbit[orbitIndex].scale[0] / 2) - self.orbit[orbitIndex].offset[0]));
                 turtlePenColor(215, 215, 215);
                 textGLWriteString(tickValue, xpos, self.windows[windowIndex].windowCoords[1] + tickLength + 17, 8, 50);
             }
@@ -2232,12 +2260,12 @@ void renderOrder() {
         }
         if (self.windowRender -> data[i].i >= WINDOW_OSC) {
             renderOscData(ilog2(self.windowRender -> data[i].i) - ilog2(WINDOW_OSC));
+        } else if (self.windowRender -> data[i].i >= WINDOW_ORBIT) {
+            renderOrbitData(ilog2(self.windowRender -> data[i].i) - ilog2(WINDOW_ORBIT));
         } else if (self.windowRender -> data[i].i == WINDOW_FREQ) {
             renderFreqData();
         } else if (self.windowRender -> data[i].i == WINDOW_EDITOR) {
             renderEditorData();
-        } else if (self.windowRender -> data[i].i == WINDOW_ORBIT) {
-            renderOrbitData();
         } else if (self.windowRender -> data[i].i == WINDOW_INFO) {
             renderInfoData();
         }
