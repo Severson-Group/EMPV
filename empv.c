@@ -14,7 +14,7 @@ Features:
 #include <time.h>
 #include <pthread.h>
 
-// #define DEBUGGING_FLAG // enable logging debugging (terminal)
+#define DEBUGGING_FLAG // enable logging debugging (terminal)
 
 #define TCP_RECEIVE_BUFFER_LENGTH        2048
 #define MAX_SIMULTANEOUS_LOGGING_SOCKETS 4   // see https://docs.amdc.dev/getting-started/user-guide/logging/streaming.html#performance
@@ -2276,6 +2276,63 @@ void renderOrder() {
     }
 }
 
+void saveOsc(char *filename) {
+    char header[1024] = "Time, ";
+    FILE *fp = fopen(filename, "w");
+    /* assess oscilloscope */
+    int oscIndex = 0;
+    int windowIndex = 0;
+    for (int i = 0; i < self.windowRender -> length; i++) {
+        if (self.windowRender -> data[i].i >= WINDOW_OSC) {
+            oscIndex = ilog2(self.windowRender -> data[i].i) - ilog2(WINDOW_OSC);
+            windowIndex = ilog2(WINDOW_OSC) + oscIndex;
+        }
+    }
+    /* assess number of channels used and datarate */
+    list_t *channels = list_init();
+    double xquantum[4] = {-1, -1, -1, -1};
+    double globalQuantum = 10000000.0;
+    int iterations = 0;
+    for (int i = 0; i < 4; i++) {
+        int dataIndex = self.osc[oscIndex].dataIndex[i];
+        if (dataIndex > 0) {
+            xquantum[i] = (self.osc[oscIndex].windowSizeMicroseconds / 1000) / (self.osc[oscIndex].rightBound[i] - self.osc[oscIndex].leftBound[i]);
+            if (xquantum[i] < globalQuantum) {
+                globalQuantum = xquantum[i];
+                iterations = self.osc[oscIndex].rightBound[i] - self.osc[oscIndex].leftBound[i];
+            }
+            sprintf(header, "%s%s, ", header, self.logVariables -> data[dataIndex].s);
+            list_append(channels, (unitype) dataIndex, 'i');
+            list_append(channels, (unitype) self.osc[oscIndex].leftBound[i], 'i');
+            list_append(channels, (unitype) xquantum[i], 'd');
+        }
+    }
+    printf("%lf %lf %lf %lf\n", xquantum[0], xquantum[1], xquantum[2], xquantum[3]);
+    header[strlen(header) - 2] = '\0';
+    printf("%s\n", header);
+    fprintf(fp, "%s\n", header);
+    /* linear interpolate */
+    double timestep = 0.0;
+    printf("%d iterations, %lf global quantum\n", iterations, globalQuantum);
+    for (int j = 0; j < iterations; j++) {
+        char line[1024];
+        sprintf(line, "%lf, ", timestep);
+        for (int i = 0; i < channels -> length / 3; i++) {
+            double preciseIndex = channels -> data[i * 3 + 1].i + timestep / channels -> data[i * 3 + 2].d;
+            double valueLower = self.data -> data[channels -> data[i * 3 + 0].i].r -> data[(int) preciseIndex].d;
+            double valueUpper = self.data -> data[channels -> data[i * 3 + 0].i].r -> data[(int) preciseIndex + 1].d;
+            double value = valueLower + (valueUpper - valueLower) * (preciseIndex - (int) preciseIndex);
+            printf("%lf, %lf\n", preciseIndex, value);
+            sprintf(line, "%s%lf, ", line, value);
+        }
+        line[strlen(line) - 2] = '\0';
+        fprintf(fp, "%s\n", line);
+        timestep += globalQuantum;
+    }
+    fclose(fp);
+    list_free(channels);
+}
+
 void parseRibbonOutput() {
     if (ribbonRender.output[0] == 1) {
         ribbonRender.output[0] = 0; // untoggle
@@ -2284,21 +2341,13 @@ void parseRibbonOutput() {
                 printf("New oscilloscope created\n");
                 createNewOsc();
             }
-            if (ribbonRender.output[2] == 2) { // save
-                if (strcmp(win32FileDialog.selectedFilename, "null") == 0) {
-                    if (win32FileDialogPrompt(1, "") != -1) {
-                        printf("Saved to: %s\n", win32FileDialog.selectedFilename);
-                    }
-                } else {
-                    printf("Saved to: %s\n", win32FileDialog.selectedFilename);
-                }
-            }
-            if (ribbonRender.output[2] == 3) { // save as
+            if (ribbonRender.output[2] == 2) { // save/save as
                 if (win32FileDialogPrompt(1, "") != -1) {
+                    saveOsc(win32FileDialog.selectedFilename);
                     printf("Saved to: %s\n", win32FileDialog.selectedFilename);
                 }
             }
-            if (ribbonRender.output[2] == 4) { // load
+            if (ribbonRender.output[2] == 3) { // open
                 if (win32FileDialogPrompt(0, "") != -1) {
                     printf("Loaded data from: %s\n", win32FileDialog.selectedFilename);
                 }
@@ -2433,7 +2482,6 @@ int main(int argc, char *argv[]) {
     ribbonDarkTheme(); // dark theme preset
     /* initialise win32tools */
     win32ToolsInit();
-    win32FileDialogAddExtension("txt"); // add txt to extension restrictions
     win32FileDialogAddExtension("csv"); // add csv to extension restrictions
 
     int tps = 120; // ticks per second (locked to fps in this case)
