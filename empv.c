@@ -13,7 +13,7 @@ Features:
 #include <time.h>
 #include <pthread.h>
 
-#define DEBUGGING_FLAG // enable logging debugging (terminal)
+// #define DEBUGGING_FLAG // enable logging debugging (terminal)
 
 #define TCP_RECEIVE_BUFFER_LENGTH        2048
 #define MAX_SIMULTANEOUS_LOGGING_SOCKETS 4   // see https://docs.amdc.dev/getting-started/user-guide/logging/streaming.html#performance
