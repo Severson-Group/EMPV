@@ -6,11 +6,11 @@ Features:
 */
 
 #include "include/ribbon.h"
-#include "include/popup.h"
 #include "include/win32tcp.h"
 #include "include/win32Tools.h"
 #include "include/kissFFT.h"
 #include <time.h>
+#include <direct.h>
 #include <pthread.h>
 
 // #define DEBUGGING_FLAG // enable logging debugging (terminal)
@@ -868,10 +868,8 @@ void init() {
     self.theme = self.themeDark;
     if (self.theme == 0) {
         ribbonLightTheme();
-        popupLightTheme();
     } else {
         ribbonDarkTheme();
-        popupDarkTheme();
     }
     /* data */
     self.logVariables = list_init();
@@ -2402,10 +2400,8 @@ void parseRibbonOutput() {
                 }
                 if (self.theme == 0) {
                     ribbonLightTheme();
-                    popupLightTheme();
                 } else {
                     ribbonDarkTheme();
-                    popupDarkTheme();
                 }
                 turtleBgColor(self.themeColors[self.theme + 0], self.themeColors[self.theme + 1], self.themeColors[self.theme + 2]);
             } 
@@ -2495,6 +2491,7 @@ int main(int argc, char *argv[]) {
 
     /* initialize turtle */
     turtleInit(window, -320, -180, 320, 180);
+    _mkdir("include");
     /* initialise textGL */
     textGLInit(window, "include/fontBez.tgl");
     /* initialise ribbon */
