@@ -2488,7 +2488,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
     glfwMakeContextCurrent(window);
-    glfwSetWindowSizeLimits(window, 128, 72, windowHeight * 16 / 9, windowHeight);
+    glfwSetWindowSizeLimits(window, windowHeight * 16 / 9, windowHeight, windowHeight * 16 / 9, windowHeight);
     int width, height, oldWidth, oldHeight;
     glfwGetWindowSize(window, &oldWidth, &oldHeight);
 
