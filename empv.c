@@ -1718,8 +1718,8 @@ void renderOscData(int oscIndex) {
         turtlePenDown();
         turtleGoto(self.windows[windowIndex].windowCoords[0] + 5, ycenter);
         turtlePenUp();
-        int tickMarks = round(self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] / 4) * 4;
-        double culling = self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel];
+        int tickMarks = round((self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / 8) * 4;
+        double culling = (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / 2;
         while (culling > 60) {
             culling /= 4;
             tickMarks /= 4;
@@ -1747,7 +1747,7 @@ void renderOscData(int oscIndex) {
             if (self.mx > self.windows[windowIndex].windowCoords[0] && self.mx < self.windows[windowIndex].windowCoords[0] + 15) {
                 turtleTriangle(self.windows[windowIndex].windowCoords[0] + tickLength + 2, ypos, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos + 6, self.windows[windowIndex].windowCoords[0] + tickLength + 10, ypos - 6, 215, 215, 215, 0);
                 char tickValue[24];
-                sprintf(tickValue, "%d", (int) (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] / (tickMarks / 2) * mouseSample - self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel]));
+                sprintf(tickValue, "%d", (int) ((self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / tickMarks * mouseSample - self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] - self.osc[oscIndex].dummyOffset * 2));
                 turtlePenColor(215, 215, 215);
                 textGLWriteString(tickValue, self.windows[windowIndex].windowCoords[0] + tickLength + 13, ypos, 8, 0);
             }
