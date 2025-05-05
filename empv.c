@@ -1569,6 +1569,9 @@ void renderOscData(int oscIndex) {
     }
     if (self.osc[oscIndex].oldSelectedChannel != self.osc[oscIndex].selectedChannel) {
         self.osc[oscIndex].dummyOffset = (self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] + self.osc[oscIndex].bottomBound[self.osc[oscIndex].selectedChannel]) / -2;
+        if (fabs(self.osc[oscIndex].dummyOffset) < 0.01) {
+            self.osc[oscIndex].dummyOffset = 0;
+        }
         self.osc[oscIndex].dummyTopBound = self.osc[oscIndex].topBound[self.osc[oscIndex].selectedChannel] + self.osc[oscIndex].dummyOffset;
         self.osc[oscIndex].oldSelectedChannel = self.osc[oscIndex].selectedChannel;
     }
