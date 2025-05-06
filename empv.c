@@ -372,7 +372,7 @@ void fft_list_wrapper(list_t *samples, list_t *frequencyOutput, list_t *phaseOut
     /* parse */
     for (int i = 0; i < dimension; i++) {
         double fftSample = sqrt(complexSamples[i].r * complexSamples[i].r + complexSamples[i].i * complexSamples[i].i) / self.osc[self.freqOscIndex].windowSizeSamples[self.freqOscChannel]; // divide by closest rounded down power of 2 instead of window size
-        list_append(frequencyOutput, (unitype) (fftSample * 2.44), 'd');
+        list_append(frequencyOutput, (unitype) (fftSample * 2.356), 'd');
         double fftPhase = 0.0;
         /* https://www.gaussianwaves.com/2015/11/interpreting-fft-results-obtaining-magnitude-and-phase-information/ */
         if (fftSample > PHASE_THRESHOLD) {
@@ -900,7 +900,7 @@ void init() {
     self.freqLeftBound = 0;
     self.freqRightBound = 0;
     self.freqZoom = 1.0;
-    self.topFreq = 40;
+    self.topFreq = 50;
     int freqIndex = ilog2(WINDOW_FREQ);
     strcpy(self.windows[freqIndex].title, "Frequency");
     self.windows[freqIndex].windowCoords[0] = 40;
@@ -2577,14 +2577,14 @@ int main(int argc, char *argv[]) {
         start = clock();
         if (self.commsEnabled == 0) {
             /* populate demo data */
-            double sinValue1 = sin(tick / 5.0) * 2;
+            double sinValue1 = sin(tick / 5.0) * 25;
             double sinValue2 = sin(tick / 3.37) * 25;
             double sinValue3 = sin(tick * 1.1) * 12.5;
             list_append(self.data -> data[1].r, (unitype) (sinValue1), 'd');
-            list_append(self.data -> data[2].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 2) * 4), 'd');
-            list_append(self.data -> data[2].r, (unitype) (sin((tick + 0.5) / 5.0 + M_PI / 3 * 2) * 4), 'd');
-            list_append(self.data -> data[3].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 4) * 8), 'd');
-            list_append(self.data -> data[4].r, (unitype) (sin(tick / 5.0 + M_PI / 2) * 16), 'd');
+            list_append(self.data -> data[2].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 2) * 25), 'd');
+            list_append(self.data -> data[2].r, (unitype) (sin((tick + 0.5) / 5.0 + M_PI / 3 * 2) * 25), 'd');
+            list_append(self.data -> data[3].r, (unitype) (sin(tick / 5.0 + M_PI / 3 * 4) * 25), 'd');
+            list_append(self.data -> data[4].r, (unitype) (sin(tick / 5.0 + M_PI / 2) * 25), 'd');
         }
         utilLoop();
         turtleGetMouseCoords(); // get the mouse coordinates (turtle.mouseX, turtle.mouseY)
