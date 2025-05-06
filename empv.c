@@ -22,6 +22,7 @@ Features:
 #define DIAL_LOG          1
 #define DIAL_EXP          2
 
+/* there is little reason for why these window IDs were set as powers of two, but it would be difficult to change now */
 #define NUM_WINDOWS       10
 #define WINDOW_INFO       1
 #define WINDOW_FREQ       2
@@ -54,7 +55,7 @@ enum trigger_type {
 
 typedef struct { // dial
     char label[24];
-    int window;
+    int window; // uses pow2 addressing
     int type;
     int status[2];
     double size;
@@ -67,7 +68,7 @@ typedef struct { // dial
 
 typedef struct { // switch
     char label[24];
-    int window;
+    int window; // uses pow2 addressing
     int status;
     double size;
     double position[2]; // xOffset, yOffset
@@ -84,7 +85,7 @@ typedef struct { // dropdown
     list_t *options;
     char label[24];
     int index;
-    int window;
+    int window; // uses pow2 addressing
     int status;
     double size;
     double position[2]; // xOffset, yOffset
@@ -99,7 +100,7 @@ typedef struct { // dropdown
 
 typedef struct { // button
     char label[24];
-    int window;
+    int window; // uses pow2 addressing
     int status;
     int shape;
     double size;
@@ -183,8 +184,8 @@ typedef struct { // all the empv shared state is here
         list_t *logVariables; // a list of variables logged on the AMDC (logVariable_t)
         list_t *usedVariableIndices;
         list_t *oldUsedVariableIndices;
-        list_t *windowRender; // which order to render windows in
-        window_t windows[NUM_WINDOWS]; // window variables
+        list_t *windowRender; // which order to render windows in (uses pow2 addressing)
+        window_t windows[NUM_WINDOWS]; // window variables (uses ilog2 addressing)
         /* mouse variables */
         double mx; // mouseX
         double my; // mouseY
