@@ -455,8 +455,15 @@ void commsGetData(int logSlotIndex) {
 void *commsThreadFunction(void *arg) {
     int index = *(int *) arg;
     int *socketID = &(((logVariable_t *) self.logVariables -> data[index].p) -> socketID);
+    printf("started thread with index %d and socketID %d\n", index, *socketID);
+    int loopstep = 0;
+    clock_t start;
+    clock_t cycle;
+    start = clock();
+    cycle = clock();
     /* populate real data */
     while (1) {
+        start = clock();
         if (self.commsEnabled == 1) {
             if (*socketID != -1) {
                 commsGetData(index);
@@ -464,6 +471,12 @@ void *commsThreadFunction(void *arg) {
         }
         if (self.threadCloseSignal) {
             return NULL;
+        }
+        loopstep++;
+        if ((clock() - cycle) / CLOCKS_PER_SEC > 3) {
+            printf("thread index %d is running at %lf loops per second\n", index, loopstep / 3);
+            loopstep = 0;
+            cycle = clock();
         }
     }
     return NULL;
